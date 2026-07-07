@@ -1,0 +1,115 @@
+schema: spec-driven
+
+# Project context — SHARED SOURCE OF TRUTH.
+# Shown to AI when creating artifacts. Every role agent (product-owner,
+# software-architect, frontend-dev-designer) reads this first. Keep it authoritative:
+# the architect writes stack/convention decisions here so all agents inherit them.
+context: |
+  Product: workout-pal — a web app to plan and follow through on workouts.
+  Key features:
+    1. Register personal data and goals.
+    2. Generate a gym routine from an AI prompt.
+    3. Follow the routine, with a calendar that tracks consistency.
+    4. Workout mode: guides the user through each exercise and tracks time —
+       especially rest time between sets.
+  Target user: intermediate gym-goer with full-gym equipment access. Values
+  efficiency over hand-holding; no beginner form-guidance/safety scope.
+
+  Product decisions (locked in framing v1):
+    - AI generates routine STRUCTURE only (split, exercises, sets/reps/rest);
+      app owns execution; regeneration needs explicit confirmation; no silent changes.
+    - One active routine at a time (no library/switching in MVP).
+    - Calendar tracks COMPLETED sessions only — no dates/planned/missed. Weekly
+      session target is derived from the routine ("3 of 4 this week").
+    - Workout mode logs actual weight + reps + rest per set; rest timer has
+      skip/exit + restart; sessions resume at the exact set after interruption.
+    - Build order: A (data/goals) -> B (AI routine) -> D (workout mode) -> C (calendar).
+
+  HARD CONSTRAINT — local-first: ALL user data (profile, routines, sessions,
+  logs) lives in the user's browser via IndexedDB (Dexie). No server-side data
+  persistence, ever. The ONLY server code is a single stateless Next.js proxy
+  route (app/api/generate-routine/route.ts) that forwards the routine-generation
+  prompt to OpenRouter and returns the result — it stores NOTHING. The
+  OPENROUTER_API_KEY + OPENROUTER_MODEL live server-side in env only (NEVER
+  NEXT_PUBLIC_*); the client never sees the key or picks the model.
+
+  Design ethos: simple, beautiful, highly intuitive UI. Subtle, purposeful
+  animation (motion confirms, never decorates). NOT generic/templated
+  "AI-looking" interfaces. Visual identity = energetic gym-brand: DARK theme
+  by default (light first-class via manual toggle), ELECTRIC YELLOW accent
+  (#E8FF3D, dark text on it), Anton (titles/static hero numbers) + Barlow
+  (body + live numbers), ZERO border radius (sharp rectangles; only the
+  circular timer ring is round), big easy-to-tap elements (controls 48/56/64px)
+  with generous spacing, comfortable density. Fonts self-hosted
+  (.woff2, no CDN — local-first).
+
+  Design system SOURCE OF TRUTH: openspec/design-system.md — principles,
+  guidelines, and all tokens (color/type/spacing/radius/elevation/motion).
+  Every UI agent reads it before building. Owner: frontend-dev-designer.
+  Token IMPLEMENTATION (CSS vars / theme + @font-face loading) is wired by
+  the software-architect once the stack is chosen.
+
+  Stack (decided in change bootstrap-architecture): Next.js 15 (App Router) +
+  React 19 + TypeScript strict. PWA via Serwist (@serwist/next). Styling:
+  Tailwind v4 + CSS custom properties (design tokens). State: Zustand.
+  Persistence: Dexie (IndexedDB). AI: OpenRouter (OpenAI-compatible) behind the
+  stateless app/api/generate-routine/route.ts proxy; Zod validates the response.
+  Lint + format: Biome (NOT ESLint/Prettier). Architecture-boundary enforcement:
+  dependency-cruiser (CI) covers what Biome can't (see firewall below).
+  Testing: Vitest + React Testing Library + fake-indexeddb + MSW (unit/integration),
+  Playwright (e2e). Fonts self-hosted @font-face (.woff2, no CDN).
+
+  Architecture — domain-driven, feature-first, layered inside each feature:
+    src/
+      app/       thin Next route wrappers -> delegate into modules/<feature>/ui;
+                 + api/generate-routine/route.ts (the one stateless AI proxy).
+      modules/   ONE folder per feature (profile-goals A, routine-generation B,
+                 workout-mode D, calendar C). Layered INSIDE each feature:
+                   ui/     designer — 'use client' components + screen
+                   logic/  engineer — pure rules (model.ts) + seam hooks + Zustand store
+                   api/    engineer — <name>Repo (Dexie); routine-gen also holds
+                           api/ai/{prompt,schema,errors,client}
+                   types.ts   feature-owned domain types
+                   index.ts   PUBLIC BARREL — seam hooks + public types only
+      shared/    db/ (the ONE Dexie instance + migrations, browser-only),
+                 ui/ = THE DESIGN SYSTEM (designer): tokens/ (tokens/fonts/globals
+                 css), primitives/ (ATOMS — Button, Input, Stepper… built once,
+                 reused by every feature), components/ (feature-agnostic composites),
+                 layout/ (AppShell, safe-area), theme/ (useTheme + store — lives
+                 here so theme + tokens ship as one unit). Feature-specific composites
+                 stay in modules/<feature>/ui.
+    Import direction is strictly downward: ui -> logic -> api -> types. A feature's
+    four inner folders are PRIVATE; everything it exposes leaves through index.ts.
+    The logic<->UI interface = the seam between a feature's ui/ and its logic/.
+
+    Architecture firewall (CI-failing) — four rules, split across two tools since
+    Biome's noRestrictedImports is a per-file forbid-list (no zone->target model,
+    no cycle detection):
+      1. Feature UI isolation [Biome]: modules/*/ui imports only its own logic/ +
+         shared/ui (incl. theme); never api/, shared/db, or another feature.
+      2. In-feature layer direction [Biome]: no upward imports (api can't reach
+         logic/ui; logic can't reach ui).
+      3. Cross-feature = barrel-only + no cycles [dependency-cruiser, CI]: outsiders
+         import modules/<feature>/index.ts, never deep internals. Relational rule
+         Biome can't express.
+      4. Server firewall [Biome — SECURITY-LOAD-BEARING, tool-enforced]:
+         app/api/**/route.ts imports ONLY modules/routine-generation/api/ai/{prompt,
+         schema,errors} — never shared/db, any *Repo, or api/ai/client. shared/db +
+         all *Repo are browser-only. A scaffold-time fixture must prove Biome ERRORS
+         when route.ts imports shared/db.
+
+  Workflow: OpenSpec spec-driven. Roles:
+    - product-owner         owns proposal.md   (what & why)
+    - software-architect    owns design.md     (how) + the logic<->UI interface
+    - software-engineer     builds logic, data, browser persistence, AI, timers
+    - frontend-dev-designer  builds UI only (consumes the engineer's interface)
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours

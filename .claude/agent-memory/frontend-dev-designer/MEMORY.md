@@ -1,0 +1,1 @@
+- [Design system v0.3 & open forks](project_design_system_draft.md) — openspec/design-system.md, sharp-rectangle/big-tap-target athletic identity, only density still open
