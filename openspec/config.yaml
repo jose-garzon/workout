@@ -21,8 +21,11 @@ context: |
     - One active routine at a time (no library/switching in MVP).
     - Calendar tracks COMPLETED sessions only — no dates/planned/missed. Weekly
       session target is derived from the routine ("3 of 4 this week").
-    - Workout mode logs actual weight + reps + rest per set; rest timer has
-      skip/exit + restart; sessions resume at the exact set after interruption.
+    - Workout mode logs per-EXERCISE aggregates (one weight, the plan's reps,
+      total work + total rest time) — NOT per set; a single stopwatch cycles
+      work (up) -> rest (down) -> overtime; sessions resume at the exercise in
+      progress after interruption. (Revised from framing-v1 per-set logging by
+      change workout-mode.)
     - Build order: A (data/goals) -> B (AI routine) -> D (workout mode) -> C (calendar).
 
   HARD CONSTRAINT — local-first: ALL user data (profile, routines, sessions,

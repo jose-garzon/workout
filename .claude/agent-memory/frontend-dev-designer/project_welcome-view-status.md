@@ -39,5 +39,37 @@ asks from my self-critique):**
 is a snapshot, not live status. The `flex-1 justify-center` pattern in
 `OnboardingForm.tsx` (fixed header/tracker, centered variable content,
 CTA pinned via a growing sibling rather than its own margin) is worth
-reusing for any future multi-step flow with variable-length steps
-(Feature B routine generation is the next likely candidate).
+reusing for any future multi-step flow with variable-length steps — it's
+already been reused once, see [[project-routine-home-polish]] point 4.
+
+**2026-07-10 — grew to 4 steps / 8 fields, verified as a pure-renderer
+change with one deliberate non-fix.** The software-engineer added `gender`
+(step 1, 3-option `ChoiceGroup` stack) and `age` (step 2, number input,
+ordered before `unit`) to `model.ts`, `STEP_COUNT` 3→4. Confirmed the
+"`OnboardingForm`'s `Field` is a pure mapper over `fields[]`, never
+hard-codes step shape" contract (design.md §3.1) held exactly as
+documented — zero UI code changes were needed for the new fields to render
+correctly; only `OnboardingForm.test.tsx`'s hand-built `OnboardingApi` test
+double needed updating (`stepCount: 3`→`4`, "Step 2 of 3"→"Step 2 of 4"
+assertion) since it's a UI-owned file that hardcoded the old step count.
+
+**Deliberate non-fix, worth recording so it isn't "fixed" reflexively
+later:** at 360×740 (below the `sm` breakpoint, shorter than the common
+390×844 target), step 4 — now the densest step, a 4-option `focus` stack +
+`daysPerWeek` `CountStepper` — overflows the viewport by ~69px. Measured
+via Playwright bounding boxes: the primary `Finish` CTA is ALWAYS fully
+in-viewport with no scroll needed (confirmed y+height ≤ 740 exactly); only
+the secondary `Back` button sits ~80% below the fold, reachable via a
+single ordinary scroll with no clipping/jump once scrolled
+(`scrollIntoViewIfNeeded` + bounding-box check confirmed a clean, exact
+fit after scroll). Chose NOT to compress `ChoiceGroup`'s stack spacing or
+any shared rhythm token to eliminate this — that would touch every other
+step's already-verified vertical rhythm to fix one step at one
+below-target viewport, and design-system.md §4.3 already locked
+"comfortable, not compact" as the default over information density. The
+rule that actually matters (primary CTA reachable without scroll,
+design-system.md §2 "bottom-anchored... inside the thumb zone") holds at
+every tested viewport; only a secondary, already-visited-once-per-flow
+control needs a scroll on the single shortest tested phone. Re-evaluate
+only if a 5th field is ever added to any step, or if a viewport shorter
+than 740px becomes a real target.
