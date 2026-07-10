@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pre-code. The stack + architecture are **decided** (change `bootstrap-architecture`, `design.md` v3) but no application code, build system, or dependencies exist yet. When the first real code lands, add the stack-specific build/lint/test commands here.
 
-**Stack:** Next.js 15 (App Router) + React 19 + TypeScript strict; PWA via Serwist (`@serwist/next`); Tailwind v4 + CSS custom properties (design tokens); Zustand (state); Dexie/IndexedDB (persistence); OpenRouter behind a stateless proxy route (AI); **Biome** for lint + format (not ESLint/Prettier), **dependency-cruiser** in CI for architecture boundaries Biome can't express; Vitest + RTL + fake-indexeddb + MSW + Playwright (testing). Fonts self-hosted (`.woff2`, no CDN).
+**Stack:** Next.js 15 (App Router) + React 19 + TypeScript strict; PWA via Serwist (`@serwist/next`); Tailwind v4 + CSS custom properties (design tokens); Zustand (state); Dexie/IndexedDB (persistence); OpenRouter behind a stateless proxy route (AI); **Biome** for lint + format (not ESLint/Prettier), **dependency-cruiser** for architecture boundaries Biome can't express — both run on a **Husky pre-commit** hook; Vitest + RTL + fake-indexeddb + MSW + Playwright (testing). Runtime + package manager: **Bun**. Fonts self-hosted via `@font-face`, served from `public/assets/fonts/` (`.woff2`, no CDN).
 
 **Architecture — domain-driven, feature-first, layered inside each feature:**
 

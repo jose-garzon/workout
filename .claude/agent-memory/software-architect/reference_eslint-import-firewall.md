@@ -5,7 +5,7 @@ metadata:
   type: reference
 ---
 
-The architectural boundaries in workout-pal are enforced in code by **Biome `noRestrictedImports`** (rules 1, 2, 4 — per-file forbid-lists via `overrides`) plus a **`dependency-cruiser` CI step** (rule 3 barrel-only + `no-circular`, which Biome can't express). Lint+format tooling is **Biome, not ESLint/Prettier** (decided v4). Rules are specified in `openspec/changes/bootstrap-architecture/design.md` §3 (ADR-4). Summary:
+The architectural boundaries in workout-pal are enforced in code by **Biome `noRestrictedImports`** (rules 1, 2, 4 — per-file forbid-lists via `overrides`) plus **`dependency-cruiser`** (rule 3 barrel-only + `no-circular`, which Biome can't express). Both run on a **Husky pre-commit hook** (`biome check` + `depcruise`) — a violating commit is blocked locally. Lint+format tooling is **Biome, not ESLint/Prettier**; runtime/pkg-mgr is **Bun** (both decided v4/v5). Rules are specified in `openspec/changes/bootstrap-architecture/design.md` §3 (ADR-4). Summary:
 
 1. Feature `ui/` may import only its own feature's `logic/` (seam) + `shared/ui` (atoms + theme). Never `api/`, `shared/db`, or another feature's internals. [Biome]
 2. Layer direction inside a feature is `ui → logic → api → types`; no upward imports. [Biome]

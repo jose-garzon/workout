@@ -1,9 +1,16 @@
-# Architecture — workout-pal foundation (Change 1 / bootstrap) — v4
+# Architecture — workout-pal foundation (Change 1 / bootstrap) — v5
 
 **Status: DRAFT.** Proposes the stack + code structure the whole project
 follows. Nothing built yet. When you sign off, the coordinator writes the
 chosen stack **and the refined local-first constraint** into
 `openspec/config.yaml` `context:` — I have **not** touched that file.
+
+**What changed in v5 (foundation tooling folds from spec-review — no structure
+change):** fonts move to **`public/assets/fonts/`** so `@font-face url('/assets/
+fonts/…')` resolves (Next serves static from `public/`); **Bun** is the runtime +
+package manager (deploy still: static shell + one serverless route on Vercel);
+the import firewall (`biome check` + `depcruise`) runs on a **Husky pre-commit
+hook** — violations are blocked locally before they land, not just in CI.
 
 **What changed in v4 (tooling + `shared/ui` shape — everything else stands):**
 - **Lint + format → Biome**, replacing ESLint + Prettier (one fast tool, one
@@ -82,6 +89,7 @@ fewest moving parts that hold under the refined constraint (§0).
 
 | Layer | Decision | One-line reason |
 |---|---|---|
+| Runtime + pkg mgr | **Bun** | One fast tool for install/scripts/test (`bun`, `bunx`) in local dev/build; deploy = static shell + one Next serverless route (Vercel) |
 | Framework | **Next.js 15 (App Router) + React 19** | App shell + the one AI proxy route in one framework; still a client-heavy SPA in practice |
 | Language | **TypeScript (strict)** | The logic↔UI seam is a typed contract between two builders |
 | PWA | **Serwist (`@serwist/next`) + `app/manifest.ts`** | Maintained, Workbox-based, App-Router-native; offline shell + local data |
@@ -89,7 +97,7 @@ fewest moving parts that hold under the refined constraint (§0).
 | Client state | **Zustand + `dexie-react-hooks`** | Selector subscriptions (no per-tick full re-render); live IndexedDB reads |
 | Persistence | **Dexie.js (IndexedDB)** + `localStorage` for theme | Typed schema, versioned migrations, range queries the calendar needs |
 | AI | **OpenRouter (OpenAI-compatible) via a stateless Next Route Handler** | Key stays server-side; server holds no data (§0, §2) |
-| Lint + format | **Biome** (+ **`dependency-cruiser`** in CI) | One fast Rust tool for lint+format; dep-cruiser covers the import rules Biome can't (§3 ADR-4) |
+| Lint + format | **Biome** (+ **`dependency-cruiser`**, both on a **Husky pre-commit** hook) | One fast Rust tool for lint+format; dep-cruiser covers the import rules Biome can't; blocked at commit (§3 ADR-4) |
 | Testing | **Vitest + RTL + fake-indexeddb + MSW + Playwright** | Vite-native runner; data layer + route handler tested against real behavior |
 
 ### Framework — Next.js 15 (App Router) + React 19
@@ -389,8 +397,13 @@ src/
         useTheme.ts  themeStore.ts    #     resolve/persist/flip data-theme; drives the toggle
     types.ts                          # truly cross-cutting primitives only (ids, branded types) — keep minimal
 
-  assets/fonts/                       # Anton-Regular.woff2, Barlow-{400,600,700,800}.woff2
   test/setup.ts                       # fake-indexeddb + RTL + MSW server
+
+(project root, sibling of src/)
+public/
+  assets/fonts/                       # Anton-Regular.woff2, Barlow-{400,600,700,800}.woff2
+                                      #   Next serves public/ at '/', so these resolve at
+                                      #   /assets/fonts/… — the URL @font-face uses (§5)
 ```
 
 ### The layer convention (defined once, applied to every feature)
@@ -433,8 +446,8 @@ Downstream features import upstream ones **through the public barrel only**
 `workout-mode` reads a `Routine` via routine-generation's `index.ts`;
 `calendar`'s repo reads `CompletedSession` rows via workout-mode's public type.
 This keeps the graph acyclic (A←B←D←C) and visible; a barrel cycle is a design
-smell the CI dep-graph check surfaces (see the firewall below — cycle detection
-is one of the rules Biome can't do, so `dependency-cruiser` owns it).
+smell the dep-graph check surfaces at commit (see the firewall below — cycle
+detection is one of the rules Biome can't do, so `dependency-cruiser` owns it).
 
 ### The boundary firewall — four rules
 
@@ -459,7 +472,7 @@ changed in v4 is *how each is enforced* — see ADR-4):
    component or route may import them. This is the local-first constraint in code:
    the server literally cannot reach the persistence layer.
 
-### ADR-4: Enforce the firewall with Biome `noRestrictedImports` + a `dependency-cruiser` CI check
+### ADR-4: Enforce the firewall with Biome `noRestrictedImports` + `dependency-cruiser`, on a Husky pre-commit hook
 
 **Decision.** Lint + format is **Biome** (one Rust tool, one `biome.json`,
 replacing ESLint + Prettier). Biome's import guard is
@@ -472,12 +485,18 @@ enforcement:
   are "*this set of files must not import these path patterns*", which maps
   cleanly onto `overrides[].linter.rules...noRestrictedImports`. **Rule 4 stays
   fully tool-enforced** (the security-critical one).
-- **`dependency-cruiser` (a CI step, `depcruise` config) owns rule 3 and cycle
+- **`dependency-cruiser` (`depcruise` config) owns rule 3 and cycle
   detection** — the "*barrel-only / no deep cross-feature import*" rule is
   relational ("a path under feature X is off-limits to importers **outside** X"),
   which Biome's per-file forbid-list can only approximate feature-by-feature and
   can't express as one rule. dependency-cruiser does relational path rules and
-  `no-circular` natively. It runs in CI (`npm run depcruise`), same gate as lint.
+  `no-circular` natively.
+
+**Both run on a Husky pre-commit hook** (`bunx husky`; the hook runs
+`biome check` + `depcruise`). A commit that violates any firewall rule is
+**blocked locally before it lands** — the guarantee holds at commit time, not
+only in CI. (CI may re-run the same checks as a backstop, but the pre-commit hook
+is the primary gate.)
 
 **Why not force everything into Biome?** We could hand-write, per feature, an
 `overrides` block forbidding every *other* feature's deep paths — but that's
@@ -488,12 +507,12 @@ dependency-cruiser for the graph-shaped rules.
 **Alternative rejected — stay on ESLint** (`import/no-restricted-paths` +
 `import/no-cycle` cover all four rules in one tool). Rejected because the user
 chose Biome for speed and single-config simplicity. **What we give up:** rule 3 +
-cycle detection leave the linter and become a **separate CI step** — not enforced
-in-editor, only at CI. Mitigated by keeping dependency-cruiser in the same
-pre-push/CI gate as Biome. **Alternative rejected — convention-only for rule 3**
-(a code-review norm, no tool). Rejected: cross-feature coupling is exactly the
-rot that silently accretes; the security rule (4) is tool-enforced regardless, so
-only 3 was ever a candidate, and dependency-cruiser is cheap.
+cycle detection leave the linter and become a **separate `depcruise` step** — not
+enforced in-editor, but still blocked at commit by the same Husky hook as Biome.
+**Alternative rejected — convention-only for rule 3** (a code-review norm, no
+tool). Rejected: cross-feature coupling is exactly the rot that silently
+accretes; the security rule (4) is tool-enforced regardless, so only 3 was ever a
+candidate, and dependency-cruiser is cheap.
 
 **Enforcement matrix:**
 
@@ -501,7 +520,7 @@ only 3 was ever a candidate, and dependency-cruiser is cheap.
 |---|---|---|
 | 1 UI isolation | **Biome** (tool) | `overrides` glob `modules/*/ui/**` → `noRestrictedImports` bans `**/api/**`, `@/shared/db`, other features |
 | 2 layer direction | **Biome** (tool) | `overrides` on `**/api/**` and `**/logic/**` ban importing upward layers |
-| 3 barrel-only + no cycles | **dependency-cruiser** (CI script) | relational path rule (deep feature paths forbidden to outside importers) + `no-circular` |
+| 3 barrel-only + no cycles | **dependency-cruiser** (pre-commit) | relational path rule (deep feature paths forbidden to outside importers) + `no-circular` |
 | 4 server firewall | **Biome** (tool) | `overrides` glob `app/api/**/route.ts` → `noRestrictedImports` bans `@/shared/db`, `**/*Repo`, `**/api/ai/client` |
 
 Representative config sketches (illustrative — generated/expanded per feature):
@@ -560,9 +579,10 @@ no-flash script goes in the Next **root layout** (§5).
 - **More firewall surface, split across two tools.** v2 was ~two ESLint zones.
   Feature-first needs per-feature UI-isolation + layer-direction + barrel rules
   (1–3), and under **Biome** (ADR-4) rule 3 + cycle detection can't live in the
-  linter at all — they move to a **`dependency-cruiser` CI step**. So the config
-  is more surface *and* two tools; best **generated** from the feature list so it
-  can't drift as features are added. The security rule (4) stays tool-enforced.
+  linter at all — they move to **`dependency-cruiser`**. Both tools run on a
+  **Husky pre-commit** hook, so the config is more surface *and* two tools; best
+  **generated** from the feature list so it can't drift as features are added.
+  The security rule (4) stays tool-enforced.
 - **The "server can't touch data" rule spans a pattern, not a folder.** v2 could
   say "server never imports `lib/db|lib/data`" — one place. Now browser-only code
   is scattered across `modules/*/api/*Repo`, so rule 4 matches a **glob**
@@ -709,7 +729,10 @@ one source of truth. `globals.css` in `app/` imports `shared/ui/tokens/*` and
 Tailwind.
 
 ### Self-hosted fonts (`.woff2`, no CDN — local-first)
-`shared/ui/tokens/fonts.css`, files in `src/assets/fonts/`, served from origin only:
+`shared/ui/tokens/fonts.css` declares the faces; the `.woff2` files live in
+**`public/assets/fonts/`** (Next serves `public/` at the site root, so they're
+reachable at `/assets/fonts/…` — the exact URL `@font-face` references below).
+Served from origin only:
 ```css
 @font-face{font-family:'Anton';font-weight:400;font-display:swap;
   src:url('/assets/fonts/Anton-Regular.woff2') format('woff2');}
@@ -751,7 +774,7 @@ Weighted toward **logic, persistence, and the one route**; lighter on UI.
 | Domain rules (pure) | Vitest | Weekly-target derivation, resume-at-exact-set, one-active-routine invariant, calendar aggregation — no mocks |
 | Data layer | Vitest + **fake-indexeddb** | Repositories run against a **real in-memory IndexedDB** — migrations, indexes, range queries exercised, not stubbed |
 | **AI route handler** | Vitest + **MSW** | Invoke the exported `POST` with a mock `Request`; MSW mocks OpenRouter. Assert it **proxies correctly, maps errors, streams, and NEVER persists** (imports only `modules/routine-generation/api/ai/{prompt,schema,errors}`, no `*Repo`/`shared/db` — also tool-enforced by Biome, §3 ADR-4 rule 4) |
-| **Firewall guard** | Biome + dependency-cruiser (CI) | `biome check` + `depcruise` run in CI as a gate. A scaffold-time fixture proves Biome **errors** when a `route.ts` imports `@/shared/db` (rule 4 is security-load-bearing) and that dep-cruiser fails a deep cross-feature import (rule 3) |
+| **Firewall guard** | Biome + dependency-cruiser (Husky pre-commit) | `biome check` + `depcruise` run on the pre-commit hook — a violating commit is blocked locally. A scaffold-time fixture proves Biome **errors** when a `route.ts` imports `@/shared/db` (rule 4 is security-load-bearing) and that dep-cruiser fails a deep cross-feature import (rule 3) |
 | AI client hook | Vitest + MSW | `useRoutineGeneration` against a mocked `/api/generate-routine`: streaming → `progressMessage`, Zod parse, `confirmSave` persists, malformed → `parse` error |
 | Timer engine | Vitest + fake timers | Exact decrement, no drift, skip/restart/exit |
 | UI (light) | RTL | Client-component primitives: renders, accessible name, focus ring present, disabled; a few screen-interaction tests |
@@ -774,21 +797,25 @@ that it holds no state and touches no persistence.
 | **F6** | Routing | **RESOLVED** | **Next App Router** (React Router dropped). |
 | **F3** | Persistence | **Confirmed** | **Dexie.js (IndexedDB)** + `localStorage` for theme. |
 | **F5** | Client state | **Confirmed** | **Zustand + `dexie-react-hooks`.** |
-| **F7** | Lint + format | **RESOLVED** | **Biome** (replaces ESLint + Prettier) + **`dependency-cruiser`** CI step for the graph-shaped import rules Biome can't express (§3 ADR-4). |
+| **F7** | Lint + format | **RESOLVED** | **Biome** (replaces ESLint + Prettier) + **`dependency-cruiser`** for the graph-shaped import rules Biome can't express; both on a **Husky pre-commit** hook (§3 ADR-4). |
+| **F8** | Runtime + pkg mgr | **RESOLVED** | **Bun** (`bun`/`bunx` for install/scripts/test) in local dev/build. Deploy unchanged: static shell + one Next serverless route on **Vercel**. |
 | — | PWA lib | Proposed | **Serwist (`@serwist/next`)** — flag if you'd rather hand-roll the SW. |
 | — | AI SDK | Proposed | **`openai` SDK** pointed at OpenRouter's base URL (vs plain `fetch`). |
 
 **Sequencing (follows the locked build order A→B→D→C):**
-1. **Foundation** (this change): scaffold Next 15 App Router + TS + Tailwind v4;
-   Serwist SW + `app/manifest.ts`; **Biome** (`biome.json`) + **dependency-cruiser**
-   (`.dependency-cruiser.cjs`) wired into the CI gate; `shared/ui/tokens` CSS +
-   `@font-face`; `shared/ui/theme/useTheme` + no-flash script in root layout; the
-   `modules/` + `shared/` skeleton with the per-feature layer convention + the
-   import firewall (all four §3 rules — rules 1/2/4 in Biome, rule 3 + cycles in
-   dep-cruiser; generate the per-feature blocks). **Verify the rule-4 fixture
-   errors** before moving on. `shared/db` Dexie schema v1; empty feature folders
-   with seam-hook stubs matching the §4 signatures + each feature's `index.ts`
-   barrel; an empty `app/api/generate-routine/route.ts`.
+1. **Foundation** (this change): scaffold with **Bun** — Next 15 App Router + TS
+   + Tailwind v4; Serwist SW + `app/manifest.ts`; **Biome** (`biome.json`) +
+   **dependency-cruiser** (`.dependency-cruiser.cjs`) wired onto a **Husky
+   pre-commit** hook (`biome check` + `depcruise`); `shared/ui/tokens` CSS +
+   `@font-face` with the `.woff2` files in **`public/assets/fonts/`**;
+   `shared/ui/theme/useTheme` + no-flash script in root layout; the `modules/` +
+   `shared/` skeleton with the per-feature layer convention + the import firewall
+   (all four §3 rules — rules 1/2/4 in Biome, rule 3 + cycles in dep-cruiser;
+   generate the per-feature blocks). **Verify the rule-4 fixture errors** (a
+   `route.ts` importing `@/shared/db` is blocked at commit) before moving on.
+   `shared/db` Dexie schema v1; empty feature folders with seam-hook stubs
+   matching the §4 signatures + each feature's `index.ts` barrel; an empty
+   `app/api/generate-routine/route.ts`.
 2. **A — data/goals:** `modules/profile-goals` — types, `api/profileRepo`,
    `logic/useProfile`, `ui/` onboarding.
 3. **B — AI routine:** the OpenRouter route + `modules/routine-generation/api/ai`

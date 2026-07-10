@@ -1,0 +1,48 @@
+{
+  "name": "workout-pal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "check": "biome check",
+    "depcruise": "depcruise src",
+    "firewall:proof": "bash scripts/firewall-proof.sh",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@serwist/next": "^9.5.11",
+    "dexie": "^4.4.4",
+    "dexie-react-hooks": "^4.4.0",
+    "next": "^15.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "serwist": "^9.5.11",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "dependency-cruiser": "^16.10.0",
+    "fake-indexeddb": "^6.2.5",
+    "husky": "^9.1.7",
+    "jsdom": "^29.1.1",
+    "msw": "^2.15.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
+  }
+}

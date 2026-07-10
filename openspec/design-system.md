@@ -148,6 +148,16 @@ Applied:
   a full-bleed rectangular yellow button is a bigger visual event than a
   small rounded one was, so a screen with two of them competes for attention
   even more obviously than before.
+- **Addendum, added 2026-07-09 (brand-mark exception):** the app's own
+  `Logo` mark is exempt from the one-accent-fill rule above. It's identity
+  chrome — never tappable, never a "selected/active" state — so it isn't
+  competing for the same attention budget the rule protects (a primary
+  CTA or a selected control both invite a tap; the logo never does). It
+  may therefore carry the full-saturation accent even on a screen that
+  also has a primary CTA in accent (e.g. the welcome screen's header mark
+  + hero mark + Start button). This is a narrow, named exception for the
+  brand mark specifically — it does not license a second interactive or
+  "selected" surface in accent; that half of the rule is unchanged.
 - Status colors (success/warning/danger) are reserved for their meaning only
   and always ship with an icon + label, never color alone — same rule as the
   `dataviz` skill's status palette. `warning` and `accent` are both

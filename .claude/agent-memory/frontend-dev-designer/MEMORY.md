@@ -1,1 +1,5 @@
 - [Design system v0.3 & open forks](project_design_system_draft.md) — openspec/design-system.md, sharp-rectangle/big-tap-target athletic identity, only density still open
+- [vitest+RTL cleanup gotcha](feedback_vitest-rtl-cleanup.md) — no test.globals here, need explicit afterEach(cleanup); no user-event dep, use fireEvent
+- [One-accent-fill discipline](project_accent-fill-discipline.md) — selected controls use accent-wash/accent-text, never bg-accent, when a primary CTA is also on screen
+- [welcome-view status @2026-07-08](project_welcome-view-status.md) — merged+verified (44 tests, T1 done); post-merge fixes: centered short-step fields, verified sm/md breakpoints
+- [Logo component](project_logo-component.md) — "WP" monogram; header is now Logo+ThemeToggle only (h1 sr-only), screens needing a visible title must render their own heading (see OnboardingForm h2)

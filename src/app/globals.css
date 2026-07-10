@@ -1,0 +1,73 @@
+/*
+ * Global stylesheet — Tailwind v4 entry + the design-token substrate.
+ *
+ * Owned by: frontend-dev-designer (design system).
+ * Order matters: tokens (CSS variables) -> fonts (@font-face) -> globals
+ * (resets/type-scale/motion) -> Tailwind, then `@theme inline` maps
+ * Tailwind's utilities onto the SAME variables tokens.css defines, so
+ * `bg-background`/`text-text`/etc and a raw `var(--color-background)` always
+ * resolve identically. `inline` (not a plain `@theme`) is required here: our
+ * token names (e.g. `--color-background`) intentionally match the Tailwind
+ * theme-key names, and `inline` tells Tailwind to splice the var() reference
+ * directly into each utility's generated CSS instead of re-declaring the
+ * same custom property name at `:root` — which would otherwise self-reference.
+ */
+/* Relative paths, not the `@/` alias: Tailwind's CSS @import resolver
+   (Lightning CSS) only understands real/relative module specifiers, not the
+   TypeScript/webpack path alias used elsewhere in this project. */
+@import "../shared/ui/tokens/tokens.css";
+@import "../shared/ui/tokens/fonts.css";
+@import "../shared/ui/tokens/globals.css";
+@import "tailwindcss";
+
+@theme inline {
+  /* Colors */
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-elevated-surface: var(--color-elevated-surface);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-border: var(--color-border);
+  --color-accent: var(--color-accent);
+  --color-accent-text: var(--color-accent-text);
+  --color-accent-wash: var(--color-accent-wash);
+  --color-on-accent: var(--color-on-accent);
+  --color-success: var(--color-success);
+  --color-success-text: var(--color-success-text);
+  --color-warning: var(--color-warning);
+  --color-warning-text: var(--color-warning-text);
+  --color-danger: var(--color-danger);
+  --color-danger-text: var(--color-danger-text);
+
+  /* Fonts */
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  /* Spacing is deliberately NOT mapped here: design-system.md's scale
+     (4/8/12/16/20/24/32/40/48/64/80) is a named step scale, not a uniform
+     arithmetic one (it skips 28/56) — it would silently collide with
+     Tailwind's own numeric spacing utilities (padding, margin, gap; these
+     ARE a uniform "base unit times N" formula) for steps 7 and up.
+     Components reference `var(--space-N)` directly, via Tailwind's
+     arbitrary-value syntax (`gap-[var(--space-7)]`) or inline style — the
+     one unambiguous path. */
+
+  /* Shape — zero radius everywhere (design-system.md §3.4) */
+  --radius-none: var(--radius);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-full: var(--radius);
+
+  /* Breakpoints (design-system.md §3.7) — replaces Tailwind's defaults */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  /* Motion */
+  --ease-standard: var(--ease-standard);
+  --ease-out: var(--ease-out);
+  --ease-in: var(--ease-in);
+}

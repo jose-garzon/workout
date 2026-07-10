@@ -1,0 +1,56 @@
+/*
+ * Self-hosted fonts (design-system.md §3.2, design.md §5). No CDN, no
+ * network font request — served from `public/assets/fonts/`, which Next
+ * exposes at `/assets/fonts/…`. Latin subset only.
+ *
+ * Anton: single weight (400), condensed display face — titles + static
+ * "display-brand" numbers only (never the live/ticking display — see the
+ * design-system §3.2 rationale on tabular figures).
+ * Barlow: 400/600/700/800 — everything else, including the live numeric
+ * `display` step (tabular-nums applied separately, see .num-tabular below).
+ */
+
+@font-face {
+  font-family: "Anton";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/Anton-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/Barlow-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/assets/fonts/Barlow-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/Barlow-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/assets/fonts/Barlow-ExtraBold.woff2") format("woff2");
+}
+
+:root {
+  --font-display: "Anton", "Arial Narrow Bold", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}

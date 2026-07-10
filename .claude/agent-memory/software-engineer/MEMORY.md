@@ -1,0 +1,2 @@
+- [Parallel slice boundaries](feedback_parallel-slice-boundaries.md) — flag transitive breakage in other roles' files; don't cross the firewall to fix it
+- [Integration test placement](reference_integration-test-placement.md) — cross-layer (ui+api) integration tests go at the feature root, not in ui/logic/api

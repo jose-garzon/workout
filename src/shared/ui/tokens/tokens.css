@@ -1,0 +1,130 @@
+/*
+ * Design tokens — CSS custom properties.
+ *
+ * Source of truth: openspec/design-system.md §3. Dark is the default theme
+ * (design-system.md §2 "Theming"); `[data-theme="light"]` overrides only the
+ * color roles. Every other token (spacing, sizing, radius, motion, elevation
+ * shape, z-index) is theme-independent and lives once in `:root`.
+ *
+ * Consumers: components reference `var(--…)` directly, or the Tailwind
+ * `@theme` mapping in app/globals.css that aliases onto these same variables
+ * (one source of truth — see design.md §5).
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Spacing (4px base, design-system.md §3.3) ---- */
+  --space-1: 0.25rem; /* 4px */
+  --space-2: 0.5rem; /* 8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-7: 2rem; /* 32px */
+  --space-8: 2.5rem; /* 40px */
+  --space-9: 3rem; /* 48px */
+  --space-10: 4rem; /* 64px */
+  --space-11: 5rem; /* 80px */
+
+  /* ---- Component sizing (§2 "Component sizing", §3.4) ---- */
+  --tap-target-min: 2.75rem; /* 44px — WCAG floor */
+  --control-height-sm: 3rem; /* 48px */
+  --control-height-md: 3.5rem; /* 56px */
+  --control-height-lg: 4rem; /* 64px */
+  --control-padding-inline-md: var(--space-6); /* 24px */
+  --control-padding-inline-lg: var(--space-7); /* 32px */
+  --control-gap-min: var(--space-4); /* 16px */
+
+  /* ---- Shape (§3.4) — zero radius everywhere except genuine circles ---- */
+  --radius: 0px;
+
+  /* ---- Motion (§3.6) ---- */
+  --dur-instant: 80ms;
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0, 0, 0, 1);
+  --ease-in: cubic-bezier(0.3, 0, 1, 1);
+
+  /* ---- Z-index layers (§3.8) ---- */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-tooltip: 60;
+
+  /* ---- Breakpoints (§3.7) — reference only; media queries can't read
+     custom properties, so these mirror the Tailwind `@theme` breakpoint
+     mapping in app/globals.css. Keep both in sync if they ever change. ---- */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  /* ---- Color — DARK (default theme, §3.1) ---- */
+  --color-background: #0d0d0d;
+  --color-surface: #1a1a19;
+  --color-elevated-surface: #242422;
+  --color-text: #ffffff;
+  --color-text-muted: #c3c2b7;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-accent: #e8ff3d;
+  --color-accent-text: #e8ff3d;
+  --color-accent-wash: rgba(232, 255, 61, 0.1);
+  --color-on-accent: #0b0b0b;
+  --color-success: #0ca30c;
+  --color-success-text: #0ca30c;
+  --color-warning: #fab219;
+  --color-warning-text: #fab219;
+  --color-danger: #d03b3b;
+  --color-danger-text: #e5605f;
+
+  /* ---- Elevation — DARK (§3.5): no shadows, hairline borders only,
+     except the modal/sheet layer which does get a real shadow. ---- */
+  --elevation-0: none;
+  --elevation-1: none;
+  --elevation-2: 0 16px 40px rgba(0, 0, 0, 0.5);
+
+  /* ---- Focus ring (§2 "Accessibility") — dark recipe: the accent ring
+     alone already clears contrast on dark `background`, so the inner ring
+     is just an offset gap, not a second color. ---- */
+  --focus-ring:
+    0 0 0 2px var(--color-background), 0 0 0 4px var(--color-accent);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --color-background: #f9f9f7;
+  --color-surface: #fcfcfb;
+  --color-elevated-surface: #ffffff;
+  --color-text: #0b0b0b;
+  --color-text-muted: #52514e;
+  --color-border: rgba(11, 11, 11, 0.1);
+  --color-accent: #e8ff3d;
+  --color-accent-text: #667200;
+  --color-accent-wash: rgba(232, 255, 61, 0.14);
+  --color-on-accent: #0b0b0b;
+  --color-success: #0ca30c;
+  --color-success-text: #0a6b0a;
+  --color-warning: #fab219;
+  --color-warning-text: #8a5a00;
+  --color-danger: #d03b3b;
+  --color-danger-text: #d03b3b;
+
+  /* ---- Elevation — LIGHT (§3.5): subtle shadow + hairline border. ---- */
+  --elevation-0: none;
+  --elevation-1:
+    0 1px 2px rgba(11, 11, 11, 0.04), 0 1px 1px rgba(11, 11, 11, 0.02);
+  --elevation-2:
+    0 12px 32px rgba(11, 11, 11, 0.14), 0 2px 8px rgba(11, 11, 11, 0.08);
+
+  /* ---- Focus ring — light recipe: a bare accent ring measures 1.06:1 on
+     light `background`, nowhere near the 3:1 SC 1.4.11 needs — the inner
+     `on-accent` ring does the contrast work (18.67:1). ---- */
+  --focus-ring: 0 0 0 2px var(--color-on-accent), 0 0 0 4px var(--color-accent);
+}

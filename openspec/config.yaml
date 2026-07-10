@@ -57,7 +57,9 @@ context: |
   Lint + format: Biome (NOT ESLint/Prettier). Architecture-boundary enforcement:
   dependency-cruiser (CI) covers what Biome can't (see firewall below).
   Testing: Vitest + React Testing Library + fake-indexeddb + MSW (unit/integration),
-  Playwright (e2e). Fonts self-hosted @font-face (.woff2, no CDN).
+  Playwright (e2e). Runtime + package manager: Bun. Fonts self-hosted via
+  @font-face, served from public/assets/fonts/ (.woff2, no CDN). Firewall
+  (Biome check + depcruise) runs on Husky pre-commit — a violating commit blocks.
 
   Architecture — domain-driven, feature-first, layered inside each feature:
     src/

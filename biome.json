@@ -1,0 +1,140 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["**", "!**/node_modules", "!.next", "!test/firewall-fixtures"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 80
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/app/api/**/route.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@/shared/db": "Server firewall (rule 4): the AI route must never import the persistence layer — shared/db is browser-only."
+                },
+                "patterns": [
+                  {
+                    "group": ["@/shared/db", "@/shared/db/**"],
+                    "message": "Server firewall (rule 4): shared/db is browser-only; the stateless AI route must not touch persistence."
+                  },
+                  {
+                    "group": ["**/*Repo"],
+                    "message": "Server firewall (rule 4): repositories are browser-only persistence; the AI route must not import any *Repo."
+                  },
+                  {
+                    "group": ["**/api/ai/client", "**/api/ai/client.*"],
+                    "message": "Server firewall (rule 4): api/ai/client is the browser fetch wrapper; the route must import only prompt/schema/errors."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/modules/*/ui/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@/shared/db": "UI isolation (rule 1): feature UI must not touch persistence."
+                },
+                "patterns": [
+                  {
+                    "group": ["@/shared/db", "@/shared/db/**"],
+                    "message": "UI isolation (rule 1): feature UI must not touch persistence (shared/db)."
+                  },
+                  {
+                    "group": ["**/api/**", "**/*Repo"],
+                    "message": "UI isolation (rule 1): feature UI must not import any api/ layer or repository; it consumes its own logic/ seam hooks + shared/ui only."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/modules/*/api/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/logic/**", "**/ui/**"],
+                    "message": "Layer direction (rule 2): api/ is the lowest layer; no upward imports of logic/ or ui/."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/modules/*/logic/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/ui/**"],
+                    "message": "Layer direction (rule 2): logic/ must not import ui/ (no upward imports)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

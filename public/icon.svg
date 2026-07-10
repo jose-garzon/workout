@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="workout-pal">
+  <rect width="512" height="512" fill="#0D0D0D"/>
+  <g fill="#E8FF3D">
+    <rect x="96" y="216" width="40" height="80"/>
+    <rect x="376" y="216" width="40" height="80"/>
+    <rect x="136" y="236" width="32" height="40"/>
+    <rect x="344" y="236" width="32" height="40"/>
+    <rect x="168" y="248" width="176" height="16"/>
+  </g>
+</svg>

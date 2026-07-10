@@ -15,6 +15,7 @@ The user resolved the opening product forks for workout-pal MVP on 2026-07-06. T
 - **One active routine at a time** for MVP; switching/library is a non-goal.
 - **Timer cue:** visual countdown + best-effort audible/vibration at zero (permission-gated).
 - **Offline:** everything works offline except AI generation (matches config hard constraint).
+- **Feature A onboarding field set (LOCKED 2026-07-08, change `welcome-view`):** collected via a 3-step first-run form (≤2 inputs/step). REQUIRED: display name, units (metric/imperial, default metric), bodyweight, primary goal (strength/hypertrophy/endurance/general), training days/week. OPTIONAL: height (kept but cuttable). NOT collected: experience level (persona assumed intermediate), equipment (full-gym assumed), age/sex/injuries/diet (out of scope for a structure-only generator). Step grouping: name+units · bodyweight+height · goal+days. Maps to existing `Profile`/`Goals` types in `modules/profile-goals/types.ts`. Every required field earns its place by feeding Feature B (AI routine gen) or the home greeting.
 
 **Why:** these define MVP scope and shape; the user made deliberate calls to keep it lean and avoid guilt-driven scheduling.
 **How to apply:** every proposal.md and any scope discussion must stay consistent with these. See [[change-slicing-order]] for build order.

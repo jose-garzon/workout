@@ -1,0 +1,274 @@
+/*
+ * Base element styles + typography scale + motion presets.
+ *
+ * This is the third layer of the design substrate (design.md §3):
+ * tokens.css (variables) -> fonts.css (@font-face) -> globals.css (this file:
+ * resets, type scale utilities, focus ring, motion presets). Source of truth
+ * for every value used here: openspec/design-system.md §2–§3.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Design-system §8 "Silence is a valid state": nothing pulses or loops by
+   default — motion is opt-in via the presets below, never ambient. */
+
+/* ---------------------------------------------------------------------
+ * Type scale (design-system.md §3.2)
+ * ------------------------------------------------------------------- */
+
+.text-display {
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 3rem; /* 48px */
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.text-display-brand {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2.75rem; /* 44px */
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.text-title-1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.75rem; /* 28px */
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.text-title-2 {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1.25rem; /* 20px */
+  line-height: 1.3;
+}
+
+.text-title-3 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 1.0625rem; /* 17px */
+  line-height: 1.4;
+}
+
+.text-body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 1rem; /* 16px */
+  line-height: 1.5;
+}
+
+.text-body-strong {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 1rem; /* 16px */
+  line-height: 1.5;
+}
+
+.text-caption {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.4;
+}
+
+.text-micro {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.75rem; /* 12px */
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Aligned/live numeric columns (timer, in-session weight/reps, history rows). */
+.num-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------
+ * Focus ring (design-system.md §2 "Accessibility") — two-layer, theme-aware,
+ * never a bare `outline: none`. Applied to every focusable interactive
+ * element via :focus-visible so mouse clicks stay clean.
+ * ------------------------------------------------------------------- */
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------------------------------------------------------------------
+ * Motion presets (design-system.md §3.6). Never `transition: all`.
+ * ------------------------------------------------------------------- */
+
+.anim-fade {
+  animation: wp-fade var(--dur-fast) var(--ease-standard);
+}
+
+.anim-rise {
+  animation: wp-rise var(--dur-base) var(--ease-out);
+}
+
+.anim-press {
+  transition: transform var(--dur-instant) var(--ease-standard);
+}
+.anim-press:active {
+  transform: scale(0.97);
+}
+
+.anim-success-pulse {
+  animation: wp-success-pulse 240ms var(--ease-standard);
+}
+
+.anim-slide {
+  animation: wp-slide var(--dur-slow) var(--ease-standard);
+}
+
+@keyframes wp-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wp-success-pulse {
+  0% {
+    transform: scale(0.85);
+  }
+  70% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes wp-slide {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Building indicator (routine-generation) — the ONE sanctioned looping motion
+   (design-system.md §"four states": AI routine generation is the honest
+   exception to "no spinners / nothing loops", showing a specific progressing
+   indicator while the model works). Bars rise and fall in sequence; the loop
+   is bounded to the generating state only, never ambient. */
+.anim-build-bars > span {
+  transform-origin: bottom;
+  animation: wp-build-bar var(--dur-slow) var(--ease-standard) infinite;
+}
+.anim-build-bars > span:nth-child(2) {
+  animation-delay: 110ms;
+}
+.anim-build-bars > span:nth-child(3) {
+  animation-delay: 220ms;
+}
+
+@keyframes wp-build-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* Logo mark (shared/ui/components/Logo.tsx) — "WP" monogram, drawn with
+   stroked paths using a normalized `pathLength="100"` so the dash math
+   below is unit-independent. `.wp-logo-glyph`'s resting style is fully
+   drawn (`stroke-dashoffset: 0`); `.anim-logo-draw` plays each glyph's
+   stroke from fully retracted (`stroke-dashoffset: 100`) to that same
+   resting value once on mount, so once the animation ends (or is disabled
+   entirely under reduced-motion) the element just shows its plain,
+   always-correct static CSS — no separate reduced-motion fallback value to
+   keep in sync. The "P" starts a beat after the "W" for a sequential
+   draw-on rather than both letters appearing at once. */
+.wp-logo-glyph {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+}
+
+.anim-logo-draw .wp-logo-glyph {
+  animation: wp-logo-draw var(--dur-slow) var(--ease-out);
+}
+
+.anim-logo-draw .wp-logo-glyph--p {
+  animation-delay: var(--dur-fast);
+}
+
+@keyframes wp-logo-draw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* prefers-reduced-motion (design-system.md §2 "Motion"): drop transform-based
+   motion to an instant state change or a single opacity fade. The
+   rest-timer ring's data-driven fill is explicitly exempt (it lives in the
+   timer component itself, not in these decorative presets). */
+@media (prefers-reduced-motion: reduce) {
+  .anim-rise,
+  .anim-slide,
+  .anim-success-pulse,
+  .anim-logo-draw .wp-logo-glyph {
+    animation: none;
+  }
+  /* Building indicator freezes to a static, still-legible resting state — the
+     accompanying progress text carries the "working" meaning under reduce. */
+  .anim-build-bars > span {
+    animation: none;
+    transform: scaleY(0.7);
+  }
+  .anim-press {
+    transition: none;
+  }
+  .anim-press:active {
+    transform: none;
+  }
+  .anim-fade {
+    animation-duration: var(--dur-fast);
+  }
+}
