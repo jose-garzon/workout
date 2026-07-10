@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
 import { useActiveRoutine } from "../logic/useActiveRoutine";
@@ -38,6 +38,14 @@ const ERROR_MESSAGES: Record<string, string> = {
   provider: "The routine generator had a problem. Try again.",
 };
 
+/**
+ * Always strength-focused, regardless of the user's own saved goal — a
+ * concrete, well-formed prompt is the point (a specific split built around
+ * the four "big" lifts), not a personalized suggestion.
+ */
+const EXAMPLE_PROMPT =
+  "A 4-day strength program built around squat, bench, deadlift, and overhead press.";
+
 function goalLabel(focus: string): string {
   return focus.charAt(0).toUpperCase() + focus.slice(1);
 }
@@ -52,6 +60,13 @@ export function RoutineHomeScreen({
   const { routine: active } = useActiveRoutine();
   const { status, progressMessage, error, generate, confirmSave, reset } =
     useRoutineGeneration();
+  // The composer is remounted (via `composerKey`) whenever the example
+  // prompt is tapped, so its uncontrolled text field starts pre-filled —
+  // see the `Composer.initialValue` doc comment for why a remount, not a
+  // controlled prop, is the clean way to do a one-shot external prefill.
+  const [prefill, setPrefill] = useState("");
+  const [composerKey, setComposerKey] = useState(0);
+  const thinkingLogRef = useRef<HTMLDivElement>(null);
 
   const name = displayName?.trim() || "there";
   const generating = status === "generating";
@@ -69,32 +84,76 @@ export function RoutineHomeScreen({
     void generate(prompt, { focus, daysPerWeek, bodyweightKg, unit });
   };
 
+  const useExamplePrompt = () => {
+    setPrefill(EXAMPLE_PROMPT);
+    setComposerKey((key) => key + 1);
+  };
+
+  // Keep the thinking log pinned to its newest line as `progressMessage`
+  // streams in — without this the log stays scrolled to the top (its
+  // initial, empty scroll position) and the latest reasoning sits hidden
+  // below the fold. The div itself stays the live region (aria-live is on
+  // the element, not this effect) — this only moves the scroll position, a
+  // presentation detail AT already gets via the live-region announcement.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: progressMessage is the intentional re-run trigger even though the effect body reads it only via the DOM, not directly.
+  useEffect(() => {
+    const el = thinkingLogRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [progressMessage]);
+
   const motivation = active
     ? (active.subtitle ?? "Your routine is ready — pick a day to train.")
     : "Tell me how you train and I'll build your split.";
 
   return (
-    <AppShell title={`Hey, ${name}`}>
-      <div className="flex flex-col gap-[var(--space-4)]">
-        <span className="text-micro inline-flex h-[var(--space-8)] w-fit items-center bg-accent-wash px-[var(--space-3)] text-accent-text">
+    <AppShell title="Home">
+      {/* Identity block: greeting + goal + motivational line. `AppShell`'s
+          own `<h1>{title}</h1>` is `sr-only` (the header shows only the Logo
+          + theme toggle), so this `<h2>` is the screen's one VISIBLE
+          heading. */}
+      <div className="flex flex-col gap-[var(--space-3)]">
+        <h2 className="text-title-1">Hey, {name}</h2>
+        <span className="text-micro inline-flex h-[var(--space-7)] w-fit items-center bg-accent-wash px-[var(--space-4)] text-accent-text">
           {goalLabel(focus)}
         </span>
         <p className="text-body text-text-muted">{motivation}</p>
       </div>
 
-      {active ? (
-        <RoutineSummary routine={active} />
-      ) : status === "idle" ? (
-        <p className="text-body text-text-muted">
-          No routine yet — describe your training below to build one.
-        </p>
-      ) : null}
+      {/* This is the only flex-growing region in the layout, so it always
+          absorbs exactly the leftover space between the identity block above
+          and the composer dock below — on a short state (the empty invite,
+          or a routine with one day) that CENTERS the content in the middle
+          of that band instead of top-hugging it and leaving one big dead gap
+          stacked above the composer (the same fix already applied to
+          `OnboardingForm`'s short steps). The composer dock's own position
+          is unaffected: it was already flush to the bottom via this sibling
+          absorbing the remainder, not via its own margin, so it never moves. */}
+      <div className="flex flex-1 flex-col justify-center">
+        {active ? (
+          <RoutineSummary routine={active} />
+        ) : status === "idle" ? (
+          <div className="flex flex-col gap-[var(--space-4)]">
+            <p className="text-body text-text-muted">
+              No routine yet — describe your training below to build one.
+            </p>
+            <button
+              type="button"
+              onClick={useExamplePrompt}
+              className="anim-press flex flex-col items-start gap-[var(--space-2)] border border-border bg-surface px-[var(--space-5)] py-[var(--space-4)] text-left transition-colors hover:border-text hover:bg-elevated-surface"
+            >
+              <span className="text-micro text-accent-text">Try</span>
+              <span className="text-body text-text">“{EXAMPLE_PROMPT}”</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
 
-      <div className="mt-auto flex flex-col gap-[var(--space-3)] pt-[var(--space-6)]">
+      <div className="flex flex-col gap-[var(--space-3)] pt-[var(--space-8)]">
         {generating && <BuildingIndicator />}
 
         {progressMessage !== "" && (
           <div
+            ref={thinkingLogRef}
             role="log"
             aria-live="polite"
             aria-label="What the generator is thinking"
@@ -118,7 +177,13 @@ export function RoutineHomeScreen({
           </div>
         )}
 
-        <Composer onSubmit={onSubmit} busy={generating} />
+        <Composer
+          key={composerKey}
+          initialValue={prefill}
+          focusOnMount={prefill !== ""}
+          onSubmit={onSubmit}
+          busy={generating}
+        />
       </div>
 
       {awaitingReplace && (

@@ -20,6 +20,8 @@ import Dexie, { type EntityTable } from "dexie";
 export interface ProfileRow {
   id: string;
   displayName?: string;
+  gender: "male" | "female" | "other";
+  age: number;
   bodyweightKg?: number;
   heightCm?: number;
   unit: "metric" | "imperial";

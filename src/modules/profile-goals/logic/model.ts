@@ -1,19 +1,27 @@
 /**
  * profile-goals — PURE onboarding domain model (design.md §3.1, §2.3, D4/D7).
  *
- * No React, no Dexie, no side effects. Owns: the 3-step / ≤2-field layout, the
+ * No React, no Dexie, no side effects. Owns: the 4-step / ≤2-field layout, the
  * unit-aware field descriptors, per-field validation, and lb→kg / in→cm
  * canonicalization. `useOnboarding` composes these; `ui/` renders their output
  * and never re-implements a rule. Descriptor types live here (the pure leaf) so
  * `model` and `useOnboarding` form a single acyclic edge (useOnboarding → model).
  */
 
-import type { Goals, MeasurementUnit, Profile, TrainingFocus } from "../types";
+import type {
+  Gender,
+  Goals,
+  MeasurementUnit,
+  Profile,
+  TrainingFocus,
+} from "../types";
 
 // --- Seam descriptor types (re-exported via useOnboarding + index.ts) --------
 
 export type FieldName =
   | "displayName"
+  | "gender"
+  | "age"
   | "unit"
   | "bodyweight"
   | "height"
@@ -50,6 +58,8 @@ export interface OnboardingField {
 /** The ephemeral form draft — every field carried as a string. */
 export interface OnboardingDraft {
   displayName: string;
+  gender: string;
+  age: string;
   unit: string;
   bodyweight: string;
   height: string;
@@ -61,18 +71,26 @@ export type FieldErrors = Record<FieldName, string | null>;
 
 // --- Static layout -----------------------------------------------------------
 
-export const STEP_COUNT = 3;
+export const STEP_COUNT = 4;
 
 const STEP_FIELDS: readonly (readonly FieldName[])[] = [
-  ["displayName", "unit"],
+  ["displayName", "gender"],
+  ["age", "unit"],
   ["bodyweight", "height"],
   ["focus", "daysPerWeek"],
 ];
 
 export const STEP_TITLES: readonly string[] = [
   "About you",
+  "A few basics",
   "Your body",
   "Your training",
+];
+
+const GENDER_OPTIONS: FieldOption[] = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
 ];
 
 const UNIT_OPTIONS: FieldOption[] = [
@@ -99,10 +117,14 @@ const FOCI: readonly TrainingFocus[] = [
   "general",
 ];
 
+const GENDERS: readonly Gender[] = ["male", "female", "other"];
+
 // --- Draft helpers -----------------------------------------------------------
 
 export const initialDraft: OnboardingDraft = {
   displayName: "",
+  gender: "",
+  age: "",
   unit: "metric",
   bodyweight: "",
   height: "",
@@ -113,6 +135,8 @@ export const initialDraft: OnboardingDraft = {
 export function emptyErrors(): FieldErrors {
   return {
     displayName: null,
+    gender: null,
+    age: null,
     unit: null,
     bodyweight: null,
     height: null,
@@ -144,6 +168,10 @@ function fieldLabel(name: FieldName, unit: string): string {
   switch (name) {
     case "displayName":
       return "Your name";
+    case "gender":
+      return "Gender";
+    case "age":
+      return "Age";
     case "unit":
       return "Units";
     case "bodyweight":
@@ -161,6 +189,10 @@ function fieldLabel(name: FieldName, unit: string): string {
 
 function isTrainingFocus(value: string): value is TrainingFocus {
   return (FOCI as readonly string[]).includes(value);
+}
+
+function isGender(value: string): value is Gender {
+  return (GENDERS as readonly string[]).includes(value);
 }
 
 /** Build a single unit-aware, error-carrying descriptor for a field. */
@@ -183,6 +215,23 @@ export function describeField(
         kind: "text",
         required: true,
         placeholder: "e.g. Alex",
+      };
+    case "gender":
+      return {
+        ...base,
+        kind: "choice",
+        required: true,
+        options: GENDER_OPTIONS,
+      };
+    case "age":
+      return {
+        ...base,
+        kind: "number",
+        required: true,
+        min: 13,
+        max: 120,
+        step: 1,
+        placeholder: "e.g. 28",
       };
     case "unit":
       return { ...base, kind: "choice", required: true, options: UNIT_OPTIONS };
@@ -241,6 +290,15 @@ export function validateField(
   switch (name) {
     case "displayName":
       return raw.trim() === "" ? "Enter your name" : null;
+    case "gender":
+      return isGender(raw) ? null : "Choose an option";
+    case "age": {
+      if (raw.trim() === "") return "Enter your age";
+      const n = Number(raw);
+      return Number.isInteger(n) && n >= 13 && n <= 120
+        ? null
+        : "Enter an age from 13 to 120";
+    }
     case "unit":
       return raw === "metric" || raw === "imperial" ? null : "Choose a unit";
     case "bodyweight": {
@@ -319,6 +377,8 @@ export function draftToRecords(draft: OnboardingDraft): {
   const profile: Profile = {
     id: "me",
     displayName: draft.displayName.trim(),
+    gender: draft.gender as Gender,
+    age: Number(draft.age),
     unit,
     bodyweightKg: imperial ? lbToKg(bw) : round1(bw),
   };

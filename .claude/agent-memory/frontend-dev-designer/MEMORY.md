@@ -3,3 +3,4 @@
 - [One-accent-fill discipline](project_accent-fill-discipline.md) — selected controls use accent-wash/accent-text, never bg-accent, when a primary CTA is also on screen
 - [welcome-view status @2026-07-08](project_welcome-view-status.md) — merged+verified (44 tests, T1 done); post-merge fixes: centered short-step fields, verified sm/md breakpoints
 - [Logo component](project_logo-component.md) — "WP" monogram; header is now Logo+ThemeToggle only (h1 sr-only), screens needing a visible title must render their own heading (see OnboardingForm h2)
+- [routine-home polish @2026-07-09](project_routine-home-polish.md) — sr-only-title trap, multi-child focus ring, remount-to-prefill, mt-auto dead-gap fix; round 2: log auto-scroll, rotating verbs, biome-ignore must be 1 line, stale next-server-on-3000 gotcha

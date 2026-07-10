@@ -15,6 +15,8 @@ function toProfile(row: ProfileRow): Profile {
   return {
     id: row.id,
     displayName: row.displayName,
+    gender: row.gender,
+    age: row.age,
     bodyweightKg: row.bodyweightKg,
     heightCm: row.heightCm,
     unit: row.unit,
@@ -31,7 +33,12 @@ function toGoals(row: GoalsRow): Goals {
 }
 
 function toProfileRow(profile: Profile): ProfileRow {
-  const row: ProfileRow = { id: SINGLETON_ID, unit: profile.unit };
+  const row: ProfileRow = {
+    id: SINGLETON_ID,
+    gender: profile.gender,
+    age: profile.age,
+    unit: profile.unit,
+  };
   if (profile.displayName !== undefined) row.displayName = profile.displayName;
   if (profile.bodyweightKg !== undefined)
     row.bodyweightKg = profile.bodyweightKg;

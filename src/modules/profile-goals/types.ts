@@ -4,10 +4,14 @@
 
 export type MeasurementUnit = "metric" | "imperial";
 
+export type Gender = "male" | "female" | "other";
+
 /** The user's personal data. Singleton — `id` is always "me". */
 export interface Profile {
   id: string;
   displayName?: string;
+  gender: Gender;
+  age: number;
   bodyweightKg?: number;
   heightCm?: number;
   unit: MeasurementUnit;

@@ -16,7 +16,13 @@ describe("test harness", () => {
 
 describe("shared/db (fake-indexeddb)", () => {
   it("persists and reads a row via real Dexie", async () => {
-    await db.profile.put({ id: "me", unit: "metric", bodyweightKg: 80 });
+    await db.profile.put({
+      id: "me",
+      gender: "male",
+      age: 28,
+      unit: "metric",
+      bodyweightKg: 80,
+    });
     const row = await db.profile.get("me");
     expect(row?.unit).toBe("metric");
     expect(row?.bodyweightKg).toBe(80);

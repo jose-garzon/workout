@@ -123,7 +123,7 @@ function reducer(state: State, action: Action): State {
 }
 
 /**
- * Drives the 3-step onboarding form (design.md §3.1). Owns an ephemeral draft
+ * Drives the 4-step onboarding form (design.md §3.1). Owns an ephemeral draft
  * (this reducer — not Zustand, not persisted; discarded when the form unmounts
  * after finish). Exposes the current step as ≤2 field descriptors. Validation
  * runs on `next()`/`finish()`, never per keystroke, and never throws.

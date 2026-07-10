@@ -22,7 +22,7 @@ afterEach(cleanup);
 function makeApi(overrides: Partial<OnboardingApi> = {}): OnboardingApi {
   return {
     stepIndex: 0,
-    stepCount: 3,
+    stepCount: 4,
     stepTitle: "About you",
     fields: [],
     setField: vi.fn(),
@@ -127,11 +127,11 @@ describe("OnboardingForm", () => {
     expect(screen.getByText("lb")).toBeInTheDocument();
   });
 
-  it("shows the step tracker as Step X of 3", () => {
-    const api = makeApi({ stepIndex: 1, stepCount: 3 });
+  it("shows the step tracker as Step X of 4", () => {
+    const api = makeApi({ stepIndex: 1, stepCount: 4 });
 
     render(<OnboardingForm onboarding={api} />);
 
-    expect(screen.getByText("Step 2 of 3")).toBeInTheDocument();
+    expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
   });
 });

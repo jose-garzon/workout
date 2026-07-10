@@ -72,7 +72,7 @@ describe("Composer", () => {
     const onSubmit = vi.fn();
     render(<Composer onSubmit={onSubmit} busy={false} />);
 
-    const button = screen.getByRole("button", { name: "Build routine" });
+    const button = screen.getByRole("button", { name: "Build my routine" });
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(onSubmit).not.toHaveBeenCalled();
@@ -90,7 +90,7 @@ describe("Composer", () => {
     fireEvent.change(screen.getByLabelText("Describe the routine you want"), {
       target: { value: "  push pull legs  " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Build routine" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my routine" }));
     expect(onSubmit).toHaveBeenCalledWith("push pull legs");
   });
 });

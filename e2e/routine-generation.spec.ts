@@ -41,6 +41,10 @@ async function completeOnboarding(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Start" }).click();
 
   await page.getByLabel("Your name", { exact: false }).fill("Alex");
+  await page.getByRole("radio", { name: "Male" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByLabel("Age", { exact: false }).fill("28");
   await page.getByRole("button", { name: "Continue" }).click();
 
   await page.getByLabel("Bodyweight (kg)", { exact: false }).fill("80");
@@ -75,7 +79,7 @@ test("generate a routine, navigate to a day, and persist across reload", async (
   await page
     .getByLabel("Describe the routine you want")
     .fill("push pull legs, chest priority");
-  await page.getByRole("button", { name: "Build routine" }).click();
+  await page.getByRole("button", { name: "Build my routine" }).click();
 
   // In-flight: the building indicator is shown.
   await expect(page.getByText("Building your routine…")).toBeVisible();

@@ -37,24 +37,31 @@ function renderGate() {
   );
 }
 
-/** Drive the real UI through all three steps and activate Finish. */
+/** Drive the real UI through all four steps and activate Finish. */
 async function completeOnboarding(name = "Alex") {
   // Gate resolves loading -> WelcomeFlow (no profile); wait for the intro.
   fireEvent.click(await screen.findByRole("button", { name: "Start" }));
 
-  // Step 1 — name + units (units default to metric).
+  // Step 1 — name + gender.
   fireEvent.change(screen.getByLabelText("Your name", { exact: false }), {
     target: { value: name },
   });
+  fireEvent.click(screen.getByRole("radio", { name: "Male" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-  // Step 2 — bodyweight (kg); height left blank (optional).
+  // Step 2 — age + units (units default to metric).
+  fireEvent.change(screen.getByLabelText("Age", { exact: false }), {
+    target: { value: "28" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+  // Step 3 — bodyweight (kg); height left blank (optional).
   fireEvent.change(screen.getByLabelText("Bodyweight (kg)", { exact: false }), {
     target: { value: "80" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-  // Step 3 — focus + training days.
+  // Step 4 — focus + training days.
   fireEvent.click(screen.getByRole("radio", { name: "Strength" }));
   const increase = screen.getByRole("button", {
     name: "Increase Training days per week",
@@ -80,6 +87,8 @@ describe("I1 — seam integration: fill 3 steps -> finish -> home by name", () =
     expect(await getProfile()).toEqual({
       id: "me",
       displayName: "Alex",
+      gender: "male",
+      age: 28,
       unit: "metric",
       bodyweightKg: 80,
       heightCm: undefined,
@@ -105,7 +114,14 @@ describe("I2 — routing gate / no-flash", () => {
 
   it("routes a seeded profile straight to home and NEVER renders onboarding markup", async () => {
     await saveOnboarding(
-      { id: "me", displayName: "Robin", unit: "metric", bodyweightKg: 70 },
+      {
+        id: "me",
+        displayName: "Robin",
+        gender: "female",
+        age: 31,
+        unit: "metric",
+        bodyweightKg: 70,
+      },
       { id: "me", focus: "hypertrophy", daysPerWeek: 3 },
     );
 
@@ -146,6 +162,8 @@ describe("I3 — no-network: finish() makes no fetch/network call", () => {
 
     act(() => {
       result.current.setField("displayName", "Sam");
+      result.current.setField("gender", "other");
+      result.current.setField("age", "40");
       result.current.setField("bodyweight", "82");
       result.current.setField("focus", "endurance");
       result.current.setField("daysPerWeek", "5");
@@ -161,6 +179,8 @@ describe("I3 — no-network: finish() makes no fetch/network call", () => {
     // ...and the write really happened.
     expect(await getProfile()).toMatchObject({
       displayName: "Sam",
+      gender: "other",
+      age: 40,
       bodyweightKg: 82,
     });
     expect(await getGoals()).toMatchObject({

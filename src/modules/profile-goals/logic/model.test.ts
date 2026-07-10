@@ -16,6 +16,8 @@ import {
 function validDraft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   return {
     displayName: "Alex",
+    gender: "male",
+    age: "28",
     unit: "metric",
     bodyweight: "80",
     height: "180",
@@ -25,42 +27,41 @@ function validDraft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   };
 }
 
+const NO_ERRORS = {
+  displayName: null,
+  gender: null,
+  age: null,
+  unit: null,
+  bodyweight: null,
+  height: null,
+  focus: null,
+  daysPerWeek: null,
+};
+
 describe("step layout", () => {
-  it("has exactly 3 steps", () => {
-    expect(STEP_COUNT).toBe(3);
+  it("has exactly 4 steps", () => {
+    expect(STEP_COUNT).toBe(4);
   });
 
   it("presents at most two fields on every step", () => {
     for (let i = 0; i < STEP_COUNT; i++) {
-      const fields = getStepFields(i, initialDraft, {
-        displayName: null,
-        unit: null,
-        bodyweight: null,
-        height: null,
-        focus: null,
-        daysPerWeek: null,
-      });
+      const fields = getStepFields(i, initialDraft, NO_ERRORS);
       expect(fields.length).toBeGreaterThanOrEqual(1);
       expect(fields.length).toBeLessThanOrEqual(2);
     }
   });
 
-  it("collects all six locked fields across the three steps", () => {
+  it("collects all eight locked fields across the four steps", () => {
     const seen = new Set<string>();
-    const errs = {
-      displayName: null,
-      unit: null,
-      bodyweight: null,
-      height: null,
-      focus: null,
-      daysPerWeek: null,
-    };
     for (let i = 0; i < STEP_COUNT; i++) {
-      for (const f of getStepFields(i, initialDraft, errs)) seen.add(f.name);
+      for (const f of getStepFields(i, initialDraft, NO_ERRORS))
+        seen.add(f.name);
     }
     expect(seen).toEqual(
       new Set([
         "displayName",
+        "gender",
+        "age",
         "unit",
         "bodyweight",
         "height",
@@ -76,17 +77,10 @@ describe("step layout", () => {
 });
 
 describe("unit-aware labels", () => {
-  const errs = {
-    displayName: null,
-    unit: null,
-    bodyweight: null,
-    height: null,
-    focus: null,
-    daysPerWeek: null,
-  };
+  const errs = NO_ERRORS;
 
   it("labels body inputs in kg/cm for metric", () => {
-    const [bodyweight, height] = getStepFields(1, validDraft(), errs);
+    const [bodyweight, height] = getStepFields(2, validDraft(), errs);
     expect(bodyweight.label).toContain("kg");
     expect(bodyweight.suffix).toBe("kg");
     expect(height.label).toContain("cm");
@@ -95,7 +89,7 @@ describe("unit-aware labels", () => {
 
   it("relabels body inputs in lb/in for imperial", () => {
     const [bodyweight, height] = getStepFields(
-      1,
+      2,
       validDraft({ unit: "imperial" }),
       errs,
     );
@@ -175,8 +169,38 @@ describe("validation — height (optional)", () => {
     expect(validateField("height", validDraft({ height: "0" }))).not.toBeNull();
   });
 
-  it("lets step 2 advance with a blank height when bodyweight is valid", () => {
-    expect(canAdvanceStep(1, validDraft({ height: "" }))).toBe(true);
+  it("lets the body step advance with a blank height when bodyweight is valid", () => {
+    expect(canAdvanceStep(2, validDraft({ height: "" }))).toBe(true);
+  });
+});
+
+describe("validation — gender (one of male/female/other)", () => {
+  it("rejects blank and out-of-set values", () => {
+    expect(validateField("gender", validDraft({ gender: "" }))).not.toBeNull();
+    expect(
+      validateField("gender", validDraft({ gender: "robot" })),
+    ).not.toBeNull();
+  });
+
+  it("accepts each allowed option", () => {
+    for (const g of ["male", "female", "other"]) {
+      expect(validateField("gender", validDraft({ gender: g }))).toBeNull();
+    }
+  });
+});
+
+describe("validation — age (integer 13–120)", () => {
+  it("accepts the boundary integers 13 and 120", () => {
+    expect(validateField("age", validDraft({ age: "13" }))).toBeNull();
+    expect(validateField("age", validDraft({ age: "120" }))).toBeNull();
+  });
+
+  it("rejects blank, non-numeric, out-of-range, and non-integers", () => {
+    expect(validateField("age", validDraft({ age: "" }))).not.toBeNull();
+    expect(validateField("age", validDraft({ age: "abc" }))).not.toBeNull();
+    expect(validateField("age", validDraft({ age: "12" }))).not.toBeNull();
+    expect(validateField("age", validDraft({ age: "121" }))).not.toBeNull();
+    expect(validateField("age", validDraft({ age: "28.5" }))).not.toBeNull();
   });
 });
 
@@ -211,7 +235,7 @@ describe("canAdvance / validateStep", () => {
     expect(canAdvanceStep(0, draft)).toBe(false);
     const errors = validateStep(0, draft);
     expect(errors.displayName).not.toBeNull();
-    expect(errors.unit).toBeNull();
+    expect(errors.gender).toBeNull();
   });
 
   it("advances every step of a fully valid draft", () => {
@@ -242,11 +266,21 @@ describe("draftToRecords — canonicalization to SI", () => {
     expect(profile).toMatchObject({
       id: "me",
       displayName: "Alex",
+      gender: "male",
+      age: 28,
       unit: "metric",
       bodyweightKg: 80,
       heightCm: 180,
     });
     expect(goals).toEqual({ id: "me", focus: "strength", daysPerWeek: 4 });
+  });
+
+  it("carries gender and age (parsed to a number) onto the profile", () => {
+    const { profile } = draftToRecords(
+      validDraft({ gender: "female", age: "35" }),
+    );
+    expect(profile.gender).toBe("female");
+    expect(profile.age).toBe(35);
   });
 
   it("converts imperial input to canonical kg/cm before persistence", () => {

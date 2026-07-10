@@ -89,7 +89,19 @@ bodyweight / units into the system+user messages. The user never re-types onboar
 data (spec `routine-generation`), and the server stays stateless and
 db-free.
 
+The route itself is a **one-line delegate**: `POST` just returns
+`handleGenerateRoutine(request)`. The env read, body validation, OpenRouter call,
+and SSE pass-through all live in a server-side service,
+`api/ai/openrouter.ts` — the proxy→OpenRouter counterpart to the browser
+`api/ai/client.ts` (client→proxy). The `app/` layer only wires; the work lives
+in the module. `openrouter.ts` is server-safe (imports only its `api/ai/`
+siblings — prompt/schema/errors — never `shared/db`, any `*Repo`, or `client`),
+so firewall rule 4 still holds. `OPENROUTER_BASE_URL` is honored as an optional
+override (default `https://openrouter.ai/api/v1`).
+
 - **Alternative — server reads the profile:** violates rule 4 outright.
+- **Alternative — keep the fetch inline in `route.ts`:** rejected; app-layer
+  route files should delegate into the module, not carry service logic.
 
 ### D3 — Streaming protocol: reasoning → thinking summary, content → routine JSON
 
@@ -178,6 +190,30 @@ A day in the summary links to a new thin route `app/workout/[dayId]/page.tsx`
 that renders the existing `WorkoutModeScreen` (empty/ComingSoon). Navigation is
 by URL (`next/link` / router push) using the day's id — no cross-feature import,
 so no firewall concern. Feature D will consume `[dayId]` later.
+
+### D9 — Best-effort in-memory IP rate limit on the proxy
+
+The proxy is unauthenticated (local-first — no accounts) and spends the server's
+OpenRouter key, so an open endpoint could burn credits. `api/ai/rateLimit.ts`
+caps requests per client IP (`x-forwarded-for` first hop, else `x-real-ip`) in a
+fixed window (default 10 / 60s, tunable via `RATE_LIMIT_MAX` /
+`RATE_LIMIT_WINDOW_MS`). Over the limit → `429 { kind: "rate-limit" }`, which the
+browser client already maps back to the existing `rate-limit` `AiError`, so the
+UI surface is unchanged. It runs first in `handleGenerateRoutine`, before env/body
+work, to shed abuse early.
+
+It holds only **ephemeral counters, never user data**, in a module-level `Map`
+that vanishes on restart (with an opportunistic sweep so it can't grow
+unbounded) — so "the stateless proxy stores nothing *durable*" still holds. This
+is the important nuance: it is **per-instance and best-effort**, not a hard
+guarantee. On a multi-instance/serverless deploy each instance limits
+independently, so real protection still wants a platform/edge limit + an
+OpenRouter key spend cap layered on top.
+
+- **Alternative — durable KV/Redis token bucket:** serverless-correct but adds a
+  backend service, which the local-first "no backend" constraint forbids without
+  an explicit exception. Rejected for now; the edge-limit + key-cap combo covers
+  the same ground without app-owned state.
 
 ## Risks / Trade-offs
 

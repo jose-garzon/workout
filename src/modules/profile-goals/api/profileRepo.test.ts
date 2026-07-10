@@ -11,6 +11,8 @@ import { getGoals, getProfile, saveOnboarding } from "./profileRepo";
 const profile: Profile = {
   id: "me",
   displayName: "Alex",
+  gender: "male",
+  age: 28,
   unit: "metric",
   bodyweightKg: 80,
   heightCm: 180,
