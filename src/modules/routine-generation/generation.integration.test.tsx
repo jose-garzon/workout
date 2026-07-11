@@ -17,7 +17,10 @@ import type { Routine } from "./types";
 const CTX = {
   focus: "hypertrophy" as const,
   daysPerWeek: 5,
+  gender: "male" as const,
+  age: 29,
   bodyweightKg: 80,
+  heightCm: 178,
   unit: "metric" as const,
 };
 

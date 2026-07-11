@@ -3,6 +3,7 @@
 import type { ChangeEvent } from "react";
 
 export type InputType = "text" | "number";
+export type InputSize = "md" | "lg";
 
 export interface InputProps {
   label: string;
@@ -16,7 +17,42 @@ export interface InputProps {
   /** e.g. 'kg' | 'lb' | 'cm' | 'in' — rendered inside the field, right-aligned. */
   suffix?: string;
   autoComplete?: string;
+  /**
+   * `md` (default, 56px) — every ordinary field. `lg` (64px) is the named
+   * design-system.md exception (§2 "Component sizing") for "the single
+   * most-used input in the app, hit mid-set, often imprecisely" — workout
+   * mode's weight field is the one real consumer. `lg` also renders the
+   * value in `display` (Barlow 800, tabular-nums, 48px), matching §3.2's
+   * explicit call-out that "any live/in-session weight-or-reps number" uses
+   * the same live-numeral treatment as the rest-timer countdown, not just a
+   * bigger label weight.
+   */
+  size?: InputSize;
+  /**
+   * Locks the field against edits without hiding the value — e.g. workout
+   * mode's weight field while a set's stopwatch is running. Same
+   * `opacity-40` + `pointer-events-none` dimming `Button` uses for its
+   * `disabled` state (design-system.md consistency), applied to the whole
+   * control (border + value + suffix) so a locked field reads unmistakably
+   * inert, not just non-interactive.
+   */
+  disabled?: boolean;
 }
+
+const SIZE_HEIGHT: Record<InputSize, string> = {
+  md: "h-[var(--control-height-md)]",
+  lg: "h-[var(--control-height-lg)]",
+};
+
+const SIZE_VALUE_TEXT: Record<InputSize, string> = {
+  md: "text-body",
+  lg: "text-display",
+};
+
+const SIZE_SUFFIX_TEXT: Record<InputSize, string> = {
+  md: "text-body-strong",
+  lg: "text-title-3",
+};
 
 /**
  * Text/numeric input atom (design-system.md §2 "Component sizing" — 56px
@@ -39,6 +75,8 @@ export function Input({
   placeholder,
   suffix,
   autoComplete,
+  size = "md",
+  disabled = false,
 }: InputProps) {
   const inputId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   const errorId = error ? `${inputId}-error` : undefined;
@@ -60,9 +98,11 @@ export function Input({
       </label>
       <div
         className={[
-          "flex h-[var(--control-height-md)] border bg-transparent transition-colors",
+          "flex border bg-transparent transition-colors",
+          SIZE_HEIGHT[size],
           "focus-within:[box-shadow:var(--focus-ring)]",
           error ? "border-danger" : "border-border focus-within:border-text",
+          disabled ? "pointer-events-none opacity-40" : "",
         ].join(" ")}
       >
         <input
@@ -72,6 +112,7 @@ export function Input({
           value={value}
           onChange={handleChange}
           required={required}
+          disabled={disabled}
           placeholder={placeholder}
           autoComplete={autoComplete}
           aria-invalid={error ? true : undefined}
@@ -81,12 +122,12 @@ export function Input({
           // clean rectangle, instead of the global `:focus-visible` rule
           // outlining just this bare <input>'s inset bounds.
           style={{ boxShadow: "none" }}
-          className="text-body min-w-0 flex-1 bg-transparent px-[var(--control-padding-inline-md)] text-text placeholder:text-text-muted focus:outline-none"
+          className={`${SIZE_VALUE_TEXT[size]} min-w-0 flex-1 bg-transparent px-[var(--control-padding-inline-md)] text-text placeholder:text-text-muted focus:outline-none`}
         />
         {suffix && (
           <span
             aria-hidden="true"
-            className="text-body-strong flex items-center pr-[var(--control-padding-inline-md)] text-text-muted"
+            className={`${SIZE_SUFFIX_TEXT[size]} flex items-center pr-[var(--control-padding-inline-md)] text-text-muted`}
           >
             {suffix}
           </span>

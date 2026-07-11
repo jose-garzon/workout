@@ -38,8 +38,9 @@ This project uses OpenSpec (CLI `openspec`, v1.3.1, `schema: spec-driven` in `op
 The lifecycle is explore → propose → apply → archive, driven by skills/commands:
 
 - `/opsx:explore` — think through a problem before committing to a change. Read/search only; **never write code** in this mode.
-- `/opsx:propose` — scaffold a new change (`openspec new change "<name>"`, kebab-case) and generate all artifacts.
-- `/opsx:apply` — implement the tasks in a change.
+- `/orchestrate` — **the one unified flow.** Routes each phase to its role agent: Frame (product-owner → proposal) → Design (architect → design + specs + tasks) → spec-review → E2E specs (engineer → failing Playwright tests from acceptance criteria) → Build (engineer + designer, done when those tests go green) → verify → archive. Accepts `--until <phase>` to stop early. Every agent gets a simplicity rule: extremely simple files, no filler. Run from the MAIN conversation.
+- `/opsx:propose` — **alias** for `/orchestrate <idea> --until design`: runs the same flow but stops at the apply-ready design gate. It does NOT generate artifacts inline — framing goes to product-owner, design to software-architect.
+- `/opsx:apply` — implement the tasks in a change (the Build phase; orchestrate calls this too).
 - `/opsx:archive` — finalize a completed change.
 
 Useful CLI calls the skills rely on:
@@ -62,7 +63,7 @@ Four agents map onto the OpenSpec artifacts — they are *who*, OpenSpec is *whe
 
 The two builders work in parallel during apply, meeting at the interface the architect defines in `design.md`. Each flags out-of-scope work rather than crossing the boundary.
 
-Typical flow: `/opsx:explore` → product-owner writes proposal → software-architect writes design (incl. logic↔UI interface) → `spec-review` → software-engineer + frontend-dev-designer run `/opsx:apply` in parallel.
+Typical flow: `/opsx:explore` to think, then **`/orchestrate`** to drive the rest — it routes product-owner (proposal) → software-architect (design, incl. logic↔UI interface) → `spec-review` → software-engineer + frontend-dev-designer (`/opsx:apply` in parallel) → verify → archive. `/opsx:propose` runs the same flow but stops at the design gate.
 
 ## Shared source of truth
 

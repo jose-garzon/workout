@@ -16,12 +16,21 @@ import { type RoutinePayload, routineSchema } from "./schema";
  *     validated and turned into a domain `Routine` before it is trusted.
  */
 
-/** The profile/goals subset sent to the proxy so the split fits the user. */
+/**
+ * The profile/goals subset sent to the proxy so the split fits the user. Mirrors
+ * the server-side `PromptContext` (prompt.ts) — every onboarding field that
+ * shapes a routine, so the user never re-types it. `displayName` is intentionally
+ * excluded (identifying, no training value; kept on-device — local-first).
+ */
 export interface GenerateContext {
   focus: string;
   daysPerWeek: number;
+  gender: string;
+  age: number;
   bodyweightKg?: number;
+  heightCm?: number;
   unit: "metric" | "imperial";
+  notes?: string;
 }
 
 export type GenerateOutcome =
@@ -54,10 +63,16 @@ export async function postGenerateRoutine(
       body: JSON.stringify({
         prompt,
         profile: ctx
-          ? { unit: ctx.unit, bodyweightKg: ctx.bodyweightKg }
+          ? {
+              gender: ctx.gender,
+              age: ctx.age,
+              unit: ctx.unit,
+              bodyweightKg: ctx.bodyweightKg,
+              heightCm: ctx.heightCm,
+            }
           : undefined,
         goals: ctx
-          ? { focus: ctx.focus, daysPerWeek: ctx.daysPerWeek }
+          ? { focus: ctx.focus, daysPerWeek: ctx.daysPerWeek, notes: ctx.notes }
           : undefined,
       }),
     });

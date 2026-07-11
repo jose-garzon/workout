@@ -33,7 +33,10 @@ const PROPS = {
   displayName: "Alex",
   focus: "hypertrophy",
   daysPerWeek: 5,
+  gender: "male",
+  age: 29,
   bodyweightKg: 80,
+  heightCm: 178,
   unit: "metric" as const,
 };
 

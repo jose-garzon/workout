@@ -146,6 +146,16 @@ body {
   animation: wp-slide var(--dur-slow) var(--ease-standard);
 }
 
+/* Smooth native scrolling for JS-driven `scrollIntoView` calls (e.g. the
+   sets-progress strip auto-scrolling to the newest completed set) — using
+   CSS `scroll-behavior` (not a JS-computed animation) so the same
+   `prefers-reduced-motion` media block below can drop it to instant. Callers
+   pass `behavior: "auto"` to `scrollIntoView` so this property, not the call
+   site, decides smooth-vs-instant. */
+.anim-scroll-smooth {
+  scroll-behavior: smooth;
+}
+
 @keyframes wp-fade {
   from {
     opacity: 0;
@@ -213,6 +223,44 @@ body {
   }
 }
 
+/* Stopwatch pulse (modules/workout-mode/ui/Stopwatch.tsx) — the ONE
+   circular element's three active states (design-system.md §3.4 exception +
+   the workout-timer spec's "single control" states). Same bounded-loop-
+   while-mounted shape as `.anim-build-bars` above: this only ever runs while
+   the control is actually live in that phase, never ambient on a still
+   screen (design-system.md §1 principle 8). WORK pulses at a normal,
+   confident cadence; REST slows down (calm, cooling off); OVERTIME speeds up
+   (urgent, "let's go"). */
+.anim-stopwatch-work {
+  animation: wp-stopwatch-pulse 1400ms var(--ease-standard) infinite;
+}
+.anim-stopwatch-rest {
+  animation: wp-stopwatch-pulse 2400ms var(--ease-standard) infinite;
+}
+.anim-stopwatch-overtime {
+  animation: wp-stopwatch-pulse 900ms var(--ease-standard) infinite;
+}
+
+@keyframes wp-stopwatch-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+/* Rest-timer progress ring (design-system.md §3.6 `timer-fill` preset). The
+   ring's fraction is recomputed from `anchorTs + Date.now()` on every
+   display tick — real data, never smoothed (design-system.md Principle 3) —
+   this transition only interpolates the drawn stroke BETWEEN those exact
+   recomputes so the ring reads as a continuous drain instead of visibly
+   jumping every tick; the underlying number it's chasing is always exact. */
+.anim-timer-fill {
+  transition: stroke-dashoffset var(--dur-base) linear;
+}
+
 /* Logo mark (shared/ui/components/Logo.tsx) — "WP" monogram, drawn with
    stroked paths using a normalized `pathLength="100"` so the dash math
    below is unit-independent. `.wp-logo-glyph`'s resting style is fully
@@ -262,6 +310,19 @@ body {
     animation: none;
     transform: scaleY(0.7);
   }
+  /* Stopwatch pulse drops to a still circle — the phase is still legible
+     from its color/label/digits alone. The ring fill keeps updating (it's
+     data, not decoration, per design-system.md §2 "Motion") but loses its
+     between-tick smoothing so it jumps straight to each exact value instead
+     of visually easing toward it. */
+  .anim-stopwatch-work,
+  .anim-stopwatch-rest,
+  .anim-stopwatch-overtime {
+    animation: none;
+  }
+  .anim-timer-fill {
+    transition: none;
+  }
   .anim-press {
     transition: none;
   }
@@ -270,5 +331,8 @@ body {
   }
   .anim-fade {
     animation-duration: var(--dur-fast);
+  }
+  .anim-scroll-smooth {
+    scroll-behavior: auto;
   }
 }

@@ -1,18 +1,24 @@
 /**
- * workout-mode (Feature D) — PUBLIC BARREL. Seam hooks + public domain types.
- * `CompletedSession` is read cross-feature by calendar via this barrel.
- * Internals (incl. the Zustand hot-state store) are private.
+ * workout-mode (Feature D) — PUBLIC BARREL. The single seam
+ * (`useWorkoutSession`) + its view-model types + public domain types.
+ * `CompletedSession` is read cross-feature by calendar (C) via this barrel.
+ * Internals (Zustand hot store, display tick, repo) are private.
  */
 
-export type { RestTimer } from "./logic/useRestTimer";
-export { useRestTimer } from "./logic/useRestTimer";
 export type {
+  CurrentExerciseView,
+  OverviewExercise,
+  SeriesView,
+  SessionStatus,
+  TimerPhase,
+  TimerView,
   WorkoutSessionApi,
-  WorkoutStatus,
 } from "./logic/useWorkoutSession";
 export { useWorkoutSession } from "./logic/useWorkoutSession";
 export type {
   CompletedSession,
-  SetLog,
+  ExerciseLog,
+  SeriesLog,
+  SessionPhase,
   WorkoutSession,
 } from "./types";

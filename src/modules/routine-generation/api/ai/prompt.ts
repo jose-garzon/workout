@@ -14,12 +14,24 @@ export interface ChatMessage {
   content: string;
 }
 
-/** The subset of the user's profile/goals the prompt needs (design.md §D2). */
+/**
+ * The subset of the user's profile/goals the prompt needs (design.md §D2).
+ * Carries every onboarding field that shapes a routine so the user never
+ * re-types it: goal + days (split), plus gender / age / bodyweight / height
+ * (load + volume) and any free-text goal notes. `displayName` is deliberately
+ * omitted — it is identifying and has no training value, and keeping it on-device
+ * honors the local-first data-minimization stance (the proxy is the one network
+ * call). Optional fields are absent when the user left them blank.
+ */
 export interface PromptContext {
   focus: string;
   daysPerWeek: number;
+  gender: string;
+  age: number;
   bodyweightKg?: number;
+  heightCm?: number;
   unit: "metric" | "imperial";
+  notes?: string;
 }
 
 const SYSTEM_PROMPT = [
@@ -40,6 +52,18 @@ function formatBodyweight(ctx: PromptContext): string | null {
   return `${Math.round(ctx.bodyweightKg)} kg`;
 }
 
+/** Height in the user's own units, for the context line (cm stored canonically). */
+function formatHeight(ctx: PromptContext): string | null {
+  if (ctx.heightCm === undefined) return null;
+  if (ctx.unit === "imperial") {
+    const totalInches = Math.round(ctx.heightCm / 2.54);
+    const feet = Math.floor(totalInches / 12);
+    const inches = totalInches % 12;
+    return `${feet} ft ${inches} in`;
+  }
+  return `${Math.round(ctx.heightCm)} cm`;
+}
+
 /** Build the chat messages for a routine-generation request (design.md §D2). */
 export function buildRoutinePrompt(
   userPrompt: string,
@@ -48,9 +72,16 @@ export function buildRoutinePrompt(
   const lines = [
     `Primary goal: ${ctx.focus}.`,
     `Training days per week: ${ctx.daysPerWeek}.`,
+    `Gender: ${ctx.gender}.`,
+    `Age: ${ctx.age}.`,
   ];
   const bodyweight = formatBodyweight(ctx);
   if (bodyweight) lines.push(`Bodyweight: ${bodyweight}.`);
+  const height = formatHeight(ctx);
+  if (height) lines.push(`Height: ${height}.`);
+  if (ctx.notes && ctx.notes.trim() !== "") {
+    lines.push(`Additional goal notes: ${ctx.notes.trim()}.`);
+  }
   lines.push("", `Request: ${userPrompt}`);
 
   return [

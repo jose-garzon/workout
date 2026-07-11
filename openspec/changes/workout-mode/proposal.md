@@ -53,11 +53,13 @@ control is sized and sequenced for a tired thumb (design-system Principle 5).
   are the requirement.
 - **Advancing through the day.** After the last series of an exercise, a **Next
   exercise** control appears; after the last exercise, the session completes.
-- **Per-session, per-exercise tracking.** Each finished session records its date
-  and, per exercise, the series count, reps, weight, total work time, and total
-  rest time. Individual series are **not** recorded (see Key decision 1).
+- **Per-session, per-series tracking.** Each finished session records its date
+  and, per exercise, a record of every completed set — its weight, the plan's
+  reps, the set's work time, and its volume (weight × reps) — plus the exercise's
+  total rest time as an aggregate (see Key decision 1).
 - **Resume after interruption.** A session left partway through reopens where it
-  was, with already-finished exercises preserved (see Key decision 1).
+  was, with already-finished exercises preserved and the in-progress exercise's
+  completed sets, entered weight, and live timer restored (see Key decision 1).
 - **A success view** on finishing: a congratulations message with a celebratory
   graphic, a **difficulty (1–5)** input, a **fatigue (1–5)** input, and a button
   back home.
@@ -67,28 +69,34 @@ control is sized and sequenced for a tired thumb (design-system Principle 5).
 ## Key decisions (needs approval)
 
 These are the product calls that shape the specs — flagged for review rather than
-buried in design. Decision 1 is load-bearing and **supersedes a locked framing-v1
-decision**.
+buried in design. Decision 1 is load-bearing.
 
-1. **Track per-exercise aggregates, not per set — this reverses a locked v1
-   decision.** `config.yaml` currently locks: *"Workout mode logs actual weight +
-   reps + rest per set … sessions resume at the exact set after interruption,"*
-   and the foundation stubs (`SetLog`, `WorkoutSession.currentSetIndex`) reflect
-   that. The user has now explicitly asked for **per-exercise aggregates and no
-   individual-series tracking**: one weight per exercise, the plan's reps, and
-   total work/rest time. We adopt the user's model. Consequences that need a yes:
-   - **Resume granularity coarsens from per-set to per-exercise.** An interrupted
-     session resumes at the **exercise in progress** (with already-completed
-     exercises preserved and that exercise's entered weight and series progress
-     restored), not at an exact set index. This is the deliberate trade for the
-     simpler record.
-   - **`config.yaml` and the foundation types will need updating** by the
-     architect (`SetLog`/per-set cursor → per-exercise aggregate). That's a
-     `design.md` task; this proposal only sets the behavior.
-2. **One weight per exercise; reps come from the plan.** The weight field is per
-   *exercise view*, entered once, and applies to every series of that exercise.
-   Reps are **not** entered — they are the routine's planned reps, shown for
-   reference. (Recommended: this keeps mid-set input to a single number.)
+> **REVISION — 2026-07-11.** Key decision 1 previously cut per-series logging and
+> stored per-exercise aggregates only. The user has **reversed that interim cut**:
+> per-series logging is back IN scope. The text below is the current decision; the
+> aggregate-only wording it replaces is retired.
+
+1. **Track per-series records, not per-exercise aggregates.** Each finished set is
+   its own record: the weight used, the plan's reps for that set index, the set's
+   work time, and its volume (weight × reps). Rest is kept as one exercise-level
+   aggregate (total rest across the exercise), not per set. Rep-counting stays a
+   non-goal — reps and therefore volume are the **planned** load, not a count of
+   reps performed. Consequences:
+   - **Resume restores per-set progress.** An interrupted session resumes in the
+     exercise in progress with its already-completed sets, entered weight, and
+     live timer restored exactly — the user lands back on the same set, not just
+     the same exercise.
+   - **Varied per-set reps are recorded exactly.** A 12/10/8 plan stores each
+     set's own reps; there is no flattening to a single representative rep count.
+   - **`config.yaml` and the foundation types are updated** by the architect
+     (`SetLog`/per-set cursor → the per-series `SeriesLog`/`ExerciseLog` shapes).
+     That's a `design.md` task; this proposal only sets the behavior.
+2. **One weight field per set; reps come from the plan.** The weight field carries
+   over between sets (a new set pre-fills with the prior set's weight, editable
+   while the set is not running) and is **recorded per set** when that set
+   completes, so a mid-exercise weight change is captured. Reps are **not**
+   entered — they are the routine's planned reps for that set index, shown for
+   reference. (This keeps mid-set input to a single number.)
 3. **"Previous weight" = the weight logged for the same exercise in the most
    recent completed session.** "First session ever" means no prior completed
    session contains that exercise → no previous weight is shown. The *matching
@@ -125,9 +133,10 @@ decision**.
 - `workout-timer`: the single stopwatch control's work → rest → overtime state
   machine — its triggers, the "time's up" prompt, and the requirement that it is
   exact and survives tab backgrounding/refresh (the heartbeat).
-- `session-tracking`: what a session persists locally — date plus per-exercise
-  aggregates (series, reps, weight, total work time, total rest time), no
-  per-series breakdown, resume-at-exercise after interruption, and no network.
+- `session-tracking`: what a session persists locally — date plus, per exercise, a
+  per-series record (each set's weight, planned reps, work time, and volume) and
+  the exercise's total rest time; resume with per-set progress after interruption;
+  and no network.
 - `session-completion`: the success view — congratulations + graphic, the
   optional difficulty (1–5) and fatigue (1–5) inputs stored on the completed
   session, and the return-home control.
@@ -151,16 +160,17 @@ updated by the architect, not by an existing spec's requirements changing.
     weight, timer state).
   - `api/sessionRepo.ts` — the Dexie repo persisting in-progress and completed
     sessions.
-  - `types.ts` — reshaped from the per-set `SetLog` model to the per-exercise
-    aggregate model (Key decision 1); `CompletedSession` gains the optional
-    difficulty/fatigue ratings.
+  - `types.ts` — reshaped from the frozen per-set `SetLog` model to the per-series
+    `SeriesLog`/`ExerciseLog` shapes (Key decision 1); `CompletedSession` gains the
+    optional difficulty/fatigue ratings.
   - `ui/` — the overview, the per-exercise view, the stopwatch control, and the
     success view (feature-specific composites).
 - **`shared/db`**: the `sessions` / `completedSessions` row shapes change from
-  per-set logs to per-exercise aggregates + ratings, via a schema-version
-  migration. **Reads cross-feature by calendar (Feature C, downstream) via the
-  barrel** — this change's data-model change defines what calendar will later
-  read, though calendar itself is out of scope.
+  per-set logs to the per-series record + ratings (non-indexed fields only, so no
+  schema-version bump or migration — the architect's call, `design.md` D2).
+  **Reads cross-feature by calendar (Feature C, downstream) via the barrel** —
+  this change's data-model change defines what calendar will later read, though
+  calendar itself is out of scope.
 - **`modules/routine-generation`**: consumed read-only via its barrel
   (`Routine`/`RoutineDay`/`Exercise`/`SetPlan`) for the day's plan. No changes to
   Feature B.
@@ -174,15 +184,19 @@ updated by the architect, not by an existing spec's requirements changing.
 - **No network, ever.** Workout mode makes **zero** network calls — the only
   network call in the whole app remains routine-generation's AI proxy. Everything
   here reads and writes IndexedDB only (hard local-first constraint).
-- **No per-series logging.** Individual sets are not recorded — per-exercise
-  aggregates only (Key decision 1). No PR charts or progress analytics; data is
-  captured, not yet visualized.
+- **No rep-counting.** The app does not count reps performed; each set's recorded
+  reps are the routine's planned reps for that set index (Key decision 1), so
+  volume is planned load, not measured output.
+- **No PR charts or progress analytics.** Per-series data is captured, not yet
+  visualized.
+- **No per-series rest.** Rest is one editable default for the day, banked as one
+  exercise-level total; there is no per-set rest override or per-set rest record.
 - **No routine editing mid-session.** The user follows the day's plan as
   generated; changing exercises/sets/reps is not part of workout mode.
 - **No calendar / consistency view.** Aggregating completed sessions into a
   weekly target is Feature C.
-- **No form guidance, coaching cues, exercise media, or rep counting.** The
-  persona is intermediate; the app times and records, it doesn't coach.
+- **No form guidance, coaching cues, or exercise media.** The persona is
+  intermediate; the app times and records, it doesn't coach.
 - **No skipping/reordering exercises, and no partial-session "save & finish."**
   A session is worked in order; an unfinished session is resumed, not
   force-completed.

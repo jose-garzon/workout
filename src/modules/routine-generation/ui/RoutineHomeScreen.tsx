@@ -25,8 +25,18 @@ export interface RoutineHomeScreenProps {
   /** The user's training goal (drives the badge + the generator). */
   focus: string;
   daysPerWeek: number;
+  /**
+   * Profile context handed to the generator so the routine fits the user (the
+   * app composition layer supplies these from the loaded profile/goals — a
+   * feature's ui/ may not read another feature). All fold into the AI prompt;
+   * none are rendered.
+   */
+  gender: string;
+  age: number;
   bodyweightKg?: number;
+  heightCm?: number;
   unit: "metric" | "imperial";
+  notes?: string;
 }
 
 /** Human, specific copy per AI failure — never a raw technical string. */
@@ -54,8 +64,12 @@ export function RoutineHomeScreen({
   displayName,
   focus,
   daysPerWeek,
+  gender,
+  age,
   bodyweightKg,
+  heightCm,
   unit,
+  notes,
 }: RoutineHomeScreenProps) {
   const { routine: active } = useActiveRoutine();
   const { status, progressMessage, error, generate, confirmSave, reset } =
@@ -81,7 +95,16 @@ export function RoutineHomeScreen({
   }, [status, active, confirmSave]);
 
   const onSubmit = (prompt: string) => {
-    void generate(prompt, { focus, daysPerWeek, bodyweightKg, unit });
+    void generate(prompt, {
+      focus,
+      daysPerWeek,
+      gender,
+      age,
+      bodyweightKg,
+      heightCm,
+      unit,
+      notes,
+    });
   };
 
   const useExamplePrompt = () => {

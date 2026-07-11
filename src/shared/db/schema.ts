@@ -47,25 +47,40 @@ export interface RoutineRow {
   days: unknown[];
 }
 
-/** workout-mode (D) — an in-progress session; persisted per set so reload resumes exactly. */
+/**
+ * workout-mode (D) — an in-progress session; persisted per transition so a
+ * reload resumes at the exercise in progress with an exact timer (design.md §D4).
+ * Per-series model (§D1, revised 2026-07-11): non-indexed field shapes only —
+ * the `version(1).stores` string is unchanged, so no migration (§D2).
+ */
 export interface SessionRow {
   id: string;
   routineId: string;
   dayId: string;
   startedAt: number;
+  defaultRestSeconds: number;
+  /** ExerciseLog[] — completed exercises, mapped by sessionRepo. */
+  exerciseLogs: unknown[];
   currentExerciseIndex: number;
-  currentSetIndex: number;
-  /** SetLog[] — mapped by sessionRepo. */
-  logs: unknown[];
+  enteredWeightKg: number | null;
+  /** SeriesLog[] — sets completed within the current exercise, mapped by sessionRepo. */
+  currentSeries: unknown[];
+  accumRestSeconds: number;
+  /** SessionPhase — "ready" | "work" | "rest" | "exercise-complete". */
+  phase: string;
+  anchorTs: number;
 }
 
 /** workout-mode (D) → calendar (C). `completedAt` is indexed for calendar range queries. */
 export interface CompletedSessionRow {
   id: string;
   routineId: string;
+  dayId: string;
   completedAt: number;
-  /** SetLog[] — mapped by sessionRepo. */
-  logs: unknown[];
+  /** ExerciseLog[] — per-exercise records (each with a `series[]`), mapped by sessionRepo. */
+  exerciseLogs: unknown[];
+  difficulty?: number;
+  fatigue?: number;
 }
 
 /**

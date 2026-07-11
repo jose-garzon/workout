@@ -31,8 +31,12 @@ export default function HomePage() {
           displayName={profile.displayName}
           focus={goals?.focus ?? "general"}
           daysPerWeek={goals?.daysPerWeek ?? 3}
+          gender={profile.gender}
+          age={profile.age}
           bodyweightKg={profile.bodyweightKg}
+          heightCm={profile.heightCm}
           unit={profile.unit}
+          notes={goals?.notes}
         />
       )}
     />

@@ -21,6 +21,20 @@ single timestamp-based stopwatch state machine, the persistence + resume
 mechanics, the previous-weight lookup, and the exact logic↔UI seam the engineer
 and designer build against in parallel.
 
+> **REVISION — 2026-07-11 (D1 reopened; per-set logging restored).** The PO has
+> **reversed the per-exercise-aggregate decision**: workout mode now records
+> **per-series** data again. On each completed set (the `work`→`rest` tap) the
+> app banks that set's **elapsed work time**, the **weight** used, the plan's
+> **reps** for that set, and the **volume (`weightKg × reps`)**. `ExerciseLog`
+> becomes a `series: SeriesLog[]` array; `restSeconds` stays an exercise-level
+> aggregate (rest is between sets, not a property of one — see revised D1). Only
+> D1, D3, D6, D9, the seam contract, and the derived-stats notes move; the
+> timestamp stopwatch (D3), persistence/resume mechanics (D4/D5), tap-to-start
+> (D12), and the single-`tap` control are **unchanged in shape** — the reducer
+> just pushes a `SeriesLog` where it used to bump scalar accumulators. A
+> pleasant consequence: varied per-set reps (12/10/8) are now recorded exactly,
+> retiring the D1 "representative reps" flattening.
+
 Constraints that shape everything below:
 
 - **Local-first, zero network.** Every read/write is Dexie in the browser.
@@ -40,9 +54,10 @@ Constraints that shape everything below:
 
 **Goals**
 
-- Reshape `types.ts` + the two `shared/db` row shapes from the per-set model to
-  the per-exercise aggregate, keeping `CompletedSession` on the barrel (calendar
-  depends on it).
+- Shape `types.ts` + the two `shared/db` row shapes to the **per-series** model
+  (revised D1): `ExerciseLog.series: SeriesLog[]` with `{ reps, weightKg,
+  workSeconds, volumeKg }` per set, plus an exercise-level `restSeconds`
+  aggregate — keeping `CompletedSession` on the barrel (calendar depends on it).
 - Specify the single stopwatch as a **timestamp-based state machine**
   (work → rest → overtime → next series; last series completes the exercise) that
   survives refresh exactly.
@@ -54,30 +69,43 @@ Constraints that shape everything below:
 
 **Non-Goals** (from the proposal — restated so the seam stays honest)
 
-- No per-series logging, no PR charts/analytics, no routine editing mid-session,
-  no calendar aggregation, no coaching/form cues/media/rep-counting, no
+- No PR charts/analytics, no routine editing mid-session, no calendar
+  aggregation, no coaching/form cues/media, no **actual** rep-counting (a set's
+  logged reps = the *plan's* reps for that set index; we never count what the
+  user did), no per-series **rest** override (one default rest for the day), no
   skip/reorder, no partial "save & finish," no audio/haptic alerts. No network.
+  (Per-series **logging** was a non-goal under the original D1; the 2026-07-11
+  revision restores it — see the banner above.)
 
 ## Decisions
 
-### D1 — Per-exercise aggregate data model (reshape `types.ts` + rows)
+### D1 — Per-series data model (REVISED 2026-07-11) — reshape `types.ts` + rows
 
-`SetLog` and the per-set cursor are removed. The unit of record becomes an
-**`ExerciseLog`** aggregate. New `types.ts` surface:
+**Revised.** The original D1 stored one `ExerciseLog` aggregate per exercise
+(single `weightKg`, one `reps`, total `workSeconds`/`restSeconds`) and cut
+per-set logging as a non-goal. **The PO has reversed that decision:** every set
+is now recorded. The unit of record is a **`SeriesLog`** captured when a set's
+work ends; an **`ExerciseLog`** collects a set's worth into a `series` array plus
+the exercise's aggregate rest. New `types.ts` surface:
 
 ```ts
+/** One completed set — captured on the work→rest (or work→complete) tap (D3). */
+export interface SeriesLog {
+  reps: number;         // the PLAN's reps for this set index (sets[i].reps) — not counted
+  weightKg: number;     // the weight used for THIS set, canonical kg (0 if unset)
+  workSeconds: number;  // elapsed work time of this set (from anchorTs → tap)
+  volumeKg: number;     // = weightKg × reps (kg·reps); the headline per-set number
+}
+
 export interface ExerciseLog {
   exerciseId: string;   // the routine's exercise id — the history key (D6)
   name: string;         // denormalized so history/calendar need no routine join
-  series: number;       // completed series count (== plannedSeries on a full exercise)
-  reps: number;         // the plan's representative reps (see note)
-  weightKg: number;     // the single weight entered for this exercise (0 if unset)
-  workSeconds: number;  // total work across all series
-  restSeconds: number;  // total rest across all rests (last series has no trailing rest)
+  series: SeriesLog[];  // one entry per completed set, in order — the record
+  restSeconds: number;  // TOTAL rest across the exercise's inter-set rests (aggregate)
 }
 
-/** Stored phase. `overtime` is DERIVED, never stored (D3). */
-export type SessionPhase = "work" | "rest" | "exercise-complete";
+/** Stored phase. `overtime` is DERIVED, never stored (D3); `ready` = armed/idle (D12). */
+export type SessionPhase = "ready" | "work" | "rest" | "exercise-complete";
 
 /** An in-progress session — one resumable per (routine, day) (D5). */
 export interface WorkoutSession {
@@ -89,10 +117,9 @@ export interface WorkoutSession {
   exerciseLogs: ExerciseLog[];   // exercises already completed, in order
   // --- in-flight state of the CURRENT exercise ---
   currentExerciseIndex: number;
-  enteredWeightKg: number | null;
-  completedSeries: number;       // series finished within the current exercise
-  accumWorkSeconds: number;      // work banked from completed series this exercise
-  accumRestSeconds: number;      // rest banked from completed rests this exercise
+  enteredWeightKg: number | null; // current set's weight; carries over per set (D12)
+  currentSeries: SeriesLog[];     // sets already completed within THIS exercise
+  accumRestSeconds: number;       // rest banked from completed inter-set rests this exercise
   phase: SessionPhase;
   anchorTs: number;              // Date.now() at the current phase's start (D3/D4)
 }
@@ -101,7 +128,7 @@ export interface WorkoutSession {
 export interface CompletedSession {
   id: string;              // crypto.randomUUID() — one per completion (D5)
   routineId: string;
-  dayId: string;           // NEW — lets calendar attribute a session to its day
+  dayId: string;           // lets calendar attribute a session to its day
   completedAt: number;     // indexed for calendar range queries
   exerciseLogs: ExerciseLog[];
   difficulty?: number;     // 1–5, optional (session-completion spec)
@@ -109,25 +136,54 @@ export interface CompletedSession {
 }
 ```
 
-**Representative reps.** A plan's sets can carry different reps (12/10/8). Since
-we deliberately store no per-series breakdown, `ExerciseLog.reps` and the
-displayed "planned reps" take `exercise.sets[0].reps`; the seam also exposes the
-full `repsPerSet` array so the designer *can* show a range without it entering
-the record. Accepted limitation: a varied-rep exercise stores only its first
-figure — reference-only data we don't yet analyze (non-goal).
+**What changed vs. the old aggregate** (for the software-engineer):
 
-`plannedSeries = exercise.sets.length`.
+- `ExerciseLog.series: number` (a count) → `series: SeriesLog[]` (the records).
+  The count is now `series.length`.
+- The old top-level `reps` / `weightKg` / `workSeconds` scalars are **removed
+  from the record** — they now live per set inside `SeriesLog`. No denormalized
+  exercise total is stored: a stored total would be a second copy that can drift
+  from the array. Readers derive totals with pure helpers in `logic/model.ts`:
+  `exerciseVolumeKg(log) = Σ series.volumeKg`, `exerciseWorkSeconds(log) =
+  Σ series.workSeconds`, `seriesCount(log) = series.length`.
+- `restSeconds` **stays an exercise-level aggregate** (see the rejected
+  per-series-rest alternative below).
+- In-flight state: `completedSeries: number` + `accumWorkSeconds: number` →
+  a single `currentSeries: SeriesLog[]` (completed count = `.length`; per-set
+  work already lives in each entry, so no running work scalar is needed).
+  `accumRestSeconds` is retained (it feeds `ExerciseLog.restSeconds`).
 
-- **Alternative — keep `SetLog[]` and aggregate at read time:** rejected. It
-  re-introduces exactly the per-series record the PO removed, and calendar/history
-  would carry data we've committed not to store.
+**Reps are the plan's, per set — no flattening, no counting.** A set at index `i`
+records `exercise.sets[i].reps` (so 12/10/8 is stored exactly — the old
+"representative `sets[0].reps`" flattening is gone). We do **not** count what the
+user actually performed (non-goal: no rep-counting), so `reps` and therefore
+`volumeKg` are *planned-load* figures, not measured ones. This is the honest
+scope: we record the prescribed work the user committed to, at the weight they
+entered. `plannedSeries = exercise.sets.length`.
+
+- **Alternative — per-series `restSeconds` on each `SeriesLog`:** rejected for
+  MVP. Rest is the *gap between* sets, not a property of a set; the last set has
+  no trailing rest (a per-set field would be a permanent `0` sentinel there), and
+  banking it would force the rest→ready tap to back-patch the previously pushed
+  `SeriesLog`. The aggregate keeps the reducer's two banking sites clean (work
+  tap pushes a `SeriesLog`; rest tap adds to a scalar). Per-set rest is the
+  natural future extension if density/rest analytics are ever wanted — noted in
+  Open Questions.
+- **Alternative — keep the aggregate + also store a `series[]`:** rejected as
+  redundant denormalization; the array is the source of truth and totals derive
+  in O(sets) — trivial at gym scale.
 
 ### D2 — No Dexie version bump; only non-indexed row fields change
 
-`shared/db/schema.ts` changes the **field lists** of `SessionRow` and
-`CompletedSessionRow` to mirror D1 (drop `currentSetIndex`/`logs`; add the
-in-flight fields, `exerciseLogs`, `dayId`, `difficulty?`, `fatigue?`), but leaves
-the `version(1).stores({...})` string **byte-for-byte unchanged**:
+`shared/db/schema.ts` changes only the **non-indexed field lists** of
+`SessionRow` and `CompletedSessionRow`. For the 2026-07-11 per-series revision:
+`SessionRow` replaces `completedSeries` + `accumWorkSeconds` with
+`currentSeries: unknown[]` (a `SeriesLog[]`, stored opaquely like `exerciseLogs`)
+and keeps `accumRestSeconds`; the shape *inside* `exerciseLogs`
+(`ExerciseLog.series[]` instead of scalar fields) is invisible to Dexie since
+`exerciseLogs` was already an opaque `unknown[]`. `CompletedSessionRow` is
+untouched at the row level (`exerciseLogs: unknown[]` unchanged). The
+`version(1).stores({...})` string stays **byte-for-byte unchanged**:
 
 ```
 sessions:          "id, routineId"
@@ -191,8 +247,8 @@ stored transition and no timer to "fire."
 
 | phase        | action |
 |--------------|--------|
-| `work`       | `banked = floor((now−a)/1000)`; `accumWorkSeconds += banked`; `completedSeries += 1`. If `completedSeries < plannedSeries` → `phase='rest'`, `anchorTs=now`. Else the exercise is done: append `ExerciseLog` (weight = `enteredWeightKg ?? 0`), and either → `exercise-complete` (more exercises) or **finish** (last exercise, D5/D10). |
-| `rest`/`overtime` | `banked = floor((now−a)/1000)`; `accumRestSeconds += banked`; `phase='work'`, `anchorTs=now` (next series). |
+| `work`       | `banked = floor((now−a)/1000)`; `i = currentSeries.length` (the set just finished); **push a `SeriesLog`**: `{ reps: sets[i].reps, weightKg: enteredWeightKg ?? 0, workSeconds: banked, volumeKg: (enteredWeightKg ?? 0) × sets[i].reps }` onto `currentSeries`. If `currentSeries.length < plannedSeries` → `phase='rest'`, `anchorTs=now`. Else the exercise is done: append `ExerciseLog` (`series: currentSeries`, `restSeconds: accumRestSeconds`), then → `exercise-complete` (more exercises) or **finish** (last exercise, D5/D10). |
+| `rest`/`overtime` | `banked = floor((now−a)/1000)`; `accumRestSeconds += banked`; `phase='ready'`, `anchorTs=now` (next series is armed, not auto-running — D12). |
 | `exercise-complete` | `tap` is inert; advance is the separate `nextExercise()` control (exercise-execution spec). |
 
 Every `tap` (and `start`, `setWeightKg`, `nextExercise`) writes the session row
@@ -230,21 +286,24 @@ persistence makes exact resume *free*, so we keep it.
 
 "Resume at the exercise, not at an exact set" (PO Key decision 1) is honored in
 the **shape of the record**, not by throwing timer state away: there is no
-`setIndex` and no per-set log to restore; resume is expressed as
-`currentExerciseIndex` + `completedSeries` + banked accumulators + the entered
-weight + the live `phase/anchorTs`. The user lands back in the same exercise with
-their series progress and weight intact.
+exotic reconstruction to do; resume is expressed as `currentExerciseIndex` +
+`currentSeries` (the sets already logged this exercise) + `accumRestSeconds` +
+the entered weight + the live `phase/anchorTs`. The user lands back in the same
+exercise, on the same set, with their per-set progress and weight intact.
+(Post-revision this granularity is finer than "the exercise" — the completed
+`SeriesLog[]` restores verbatim — but it costs nothing extra: it is the same
+row read back.)
 
 **Work-anchor reset on resume (the one exception to verbatim restore).** Restoring
 a `work` anchor verbatim is wrong: `work` counts *up* with no ceiling, so a tab
-closed mid-set for an hour would reopen with ~3600s of "work" that then banks into
-`workSeconds` on the next tap — corrupting the permanent aggregate and making the
-"exact" claim read false for work. Policy: **on hydrate, if the persisted
-`phase === "work"`, set `anchorTs = Date.now()`** (and persist the corrected row)
-before serving the store. Nothing logged is lost — the in-flight series' work is
-never banked until the ending tap, and all *already-banked* series
-(`accumWorkSeconds`, `completedSeries`) are untouched; only the current series'
-stopwatch restarts from 0. `rest`/`overtime` anchors are restored **verbatim** —
+closed mid-set for an hour would reopen with ~3600s of "work" that then lands in
+the next `SeriesLog.workSeconds` on the ending tap — corrupting a permanent
+record and making the "exact" claim read false for work. Policy: **on hydrate, if
+the persisted `phase === "work"`, set `anchorTs = Date.now()`** (and persist the
+corrected row) before serving the store. Nothing logged is lost — the in-flight
+set's work is never pushed to `currentSeries` until the ending tap, and every
+*already-recorded* set in `currentSeries` (and `accumRestSeconds`) is untouched;
+only the current set's stopwatch restarts from 0. `rest`/`overtime` anchors are restored **verbatim** —
 their exactness across refresh/background is the workout-timer requirement and a
 countdown is naturally bounded (elapsing past zero is the correct `overtime`, not
 inflation).
@@ -279,12 +338,21 @@ targeting that stored id. Leaving without rating leaves the record complete.
 ### D6 — Previous-weight lookup: match by `exerciseId`
 
 `sessionRepo.getPreviousWeight(exerciseId)` walks `completedSessions` ordered by
-`completedAt` **descending** (the existing index) and returns the `weightKg` of
-the first `ExerciseLog` whose `exerciseId` matches **and whose `weightKg > 0`**;
-**`null`** when no such log exists (first-time-ever → no reference shown). The
-`weightKg > 0` filter treats a `0` (the unset/bodyweight sentinel from D1/D3) as
-"no weight recorded," so history never surfaces a misleading "previous 0 kg". The
-hook re-runs this whenever `currentExerciseIndex` changes.
+`completedAt` **descending** (the existing index). For the first `ExerciseLog`
+whose `exerciseId` matches, it returns the `weightKg` of that log's **last
+`SeriesLog` with `weightKg > 0`** (post-revision an exercise no longer has one
+top-level weight — sets can differ; the last real set is "what you finished on,"
+the most useful progression reference). If that log has no positive-weight set it
+keeps scanning older sessions; **`null`** when none exists ever (first-time → no
+reference shown). The `weightKg > 0` filter treats a `0` (the unset/bodyweight
+sentinel) as "no weight recorded," so history never surfaces a misleading
+"previous 0 kg". The hook re-runs this whenever `currentExerciseIndex` changes.
+
+- **Alternative — first-set or max-across-sets weight:** first-set is the most
+  directly comparable to the set-1 weight the user is about to enter, and max is
+  the heaviest handled; both are defensible. Last-set is chosen because it is
+  unambiguous, matches "the last thing you lifted on this," and is unaffected by
+  a warmup-lighter opening set. Cheap to revisit — a one-line change in the repo.
 
 Matching on **id** (not name) is exact and false-positive-free *within a
 routine's lifetime* — which is the dominant case: the user keeps one routine for
@@ -352,12 +420,14 @@ consumes the old hook. The internal display-tick logic lives in a private
 ```ts
 export { useWorkoutSession } from "./logic/useWorkoutSession";
 export type { WorkoutSessionApi, SessionStatus, TimerView, TimerPhase,
-              CurrentExerciseView, OverviewExercise } from "./logic/useWorkoutSession";
-export type { CompletedSession, ExerciseLog, WorkoutSession, SessionPhase } from "./types";
+              CurrentExerciseView, OverviewExercise, SeriesView } from "./logic/useWorkoutSession";
+export type { CompletedSession, ExerciseLog, SeriesLog, WorkoutSession, SessionPhase } from "./types";
 ```
 
-`CompletedSession` stays exported (calendar reads it); `SetLog`, `WorkoutStatus`,
-`useRestTimer`, `RestTimer` are gone.
+`CompletedSession` stays exported (calendar reads it, and can now sum
+`series.volumeKg` for a session-volume stat); `SeriesLog` (domain) + `SeriesView`
+(display-unit view-model) are the new per-series exports. `SetLog`,
+`WorkoutStatus`, `useRestTimer`, `RestTimer` are gone.
 
 ### D10 — Completion writes before ratings; ratings are optional enrichment
 
@@ -374,7 +444,7 @@ rule ("`ui/` never sees Dexie or another feature") means the designer **cannot**
 read the profile unit itself — a cross-feature UI import is firewall-illegal. So
 the unit conversion is the seam's job, not the UI's.
 
-- **Canonical storage stays kg.** `ExerciseLog.weightKg`, the persisted
+- **Canonical storage stays kg.** `SeriesLog.weightKg`/`volumeKg`, the persisted
   `enteredWeightKg`, and the previous-weight lookup are all kg — one unit in the
   record forever, so history compares cleanly and a later unit toggle never
   rewrites stored data.
@@ -401,6 +471,33 @@ the domain/record types, where the value really is kg.
   conversion at every weight surface, and invites the imperial-user-types-225-→-
   stored-as-225-kg bug the review flagged. The seam is the right place to own it.
 
+### D12 — Tap-to-start (`ready` phase) + weight required per set (post-apply refinement)
+
+User feedback after the first build: the clock should NOT auto-run after Start /
+Next exercise — the user taps the stopwatch to start each set — and the weight
+field must be filled before a set can begin. Adjustments:
+
+- **New `ready` phase** (stored `SessionPhase` + surfaced `TimerPhase`): a series
+  is armed but the clock is idle (`displaySeconds` = 0). It is the phase after
+  `start()`, after `nextExercise()`, and after every rest/overtime tap. A series
+  cycle is now **ready → (tap) → work → (tap) → rest → (tap) → ready(next set)…**;
+  the last set: ready → tap → work → tap → complete/finish. This supersedes D3's
+  work-on-entry: the reducer's rest/overtime branch and `advanceExercise` now land
+  in `ready`, and `initialSession` starts in `ready`.
+- **`tap()` in `ready` starts the work clock only if a weight is entered**
+  (`enteredWeightKg !== null`); otherwise it is a no-op. The seam exposes
+  **`canStartSet: boolean`** (`= phase === 'ready' && weight !== null`) so the UI
+  can gate/label the control. Weight carries over within an exercise (a new set
+  starts pre-filled with the prior set's weight, editable); `advanceExercise`
+  clears it so each exercise's first set is entered fresh.
+- **Per-set weight is recorded (revised D1, 2026-07-11).** Weight carries over
+  between sets for convenience, but each set now banks *its own* `weightKg` into
+  its `SeriesLog` on the work tap — so an edited mid-exercise weight is captured
+  per set, not collapsed to one figure. (This bullet supersedes the original
+  "storage unchanged / per-set weights not stored" note.)
+- **Resume:** `ready` needs no anchor (clock idle); `work` still resets `anchorTs`
+  on rehydrate (D4); rest/overtime restore verbatim.
+
 ## Logic↔UI seam contract
 
 The **one interface** the software-engineer implements in `logic/` and the
@@ -418,7 +515,12 @@ export type SessionStatus =
   | "in-progress"  // working exercises
   | "success";     // final exercise done; ratings + back-home
 
-export type TimerPhase = "work" | "rest" | "overtime" | "exercise-complete";
+export type TimerPhase =
+  | "ready" // armed, tap-to-start, clock idle (§D12)
+  | "work"
+  | "rest"
+  | "overtime"
+  | "exercise-complete";
 
 export interface OverviewExercise {   // (a) the day's plan, for the overview list
   id: string;
@@ -443,8 +545,15 @@ export interface TimerView {   // (e) everything the stopwatch renders
   displaySeconds: number;     // work: elapsed↑ · rest: remaining↓ · overtime: 0 · complete: 0
   restTotalSeconds: number;   // for the ring fill fraction (= defaultRestSeconds)
   overtimeSeconds: number;    // >0 only in overtime
-  currentSeries: number;      // 1-based
+  currentSeries: number;      // 1-based — the set now in progress / just finished
   plannedSeries: number;
+}
+
+export interface SeriesView {   // (h) one completed set of the CURRENT exercise, display-unit
+  reps: number;               // the plan's reps for this set index
+  weight: number;             // DISPLAY unit (kg→lb converted at the seam, D11); 0 if unset
+  workSeconds: number;        // that set's elapsed work time
+  volume: number;             // display-unit volume = weight × reps (UI does no math, D11)
 }
 
 export interface WorkoutSessionApi {
@@ -455,16 +564,18 @@ export interface WorkoutSessionApi {
   exercises: OverviewExercise[];                 // (a)
   defaultRestSeconds: number;                    // seeded per D7
   setDefaultRestSeconds: (seconds: number) => void;
-  start: () => Promise<void>;                    // → status 'in-progress', first exercise WORK
+  start: () => Promise<void>;                    // → status 'in-progress', first set READY (§D12)
 
   // --- in-progress ---
   currentExercise: CurrentExerciseView | null;   // (b)
   unit: MeasurementUnit;                         // (c) "metric"|"imperial" — for the "kg"/"lb" label only
-  weight: number | null;                         // (c) entered weight in DISPLAY unit, once per exercise
+  weight: number | null;                         // (c) entered weight for the CURRENT set in DISPLAY unit (§D12)
   setWeight: (value: number | null) => void;     // (c) value in display unit; converted to kg in logic (D11)
   previousWeight: number | null;                 // (d) last session's weight for this exercise in display unit, or null
+  canStartSet: boolean;                          // (§D12) ready && weight entered — UI gates the start tap on this
   timer: TimerView;                              // (e)
-  tap: () => Promise<void>;                       // (e) the single stopwatch action
+  completedSets: SeriesView[];                   // (h) the CURRENT exercise's finished sets, in order — for a per-set progress list
+  tap: () => Promise<void>;                       // (e) the single stopwatch action (ready→work→rest→…); the work-phase tap RECORDS the set
   nextExercise: () => Promise<void>;             // (f) advance after 'exercise-complete'
 
   // --- completion ---
@@ -484,6 +595,19 @@ Notes for the two builders:
   exercise** (`nextExercise`) — unless `currentExercise.isLast`, in which case the
   final tap has already moved `status` to `'success'` (no exercise-complete
   screen for the last exercise).
+- **The set is recorded on the work-phase `tap` — there is no separate
+  "log set" action.** When the user is in `work` and taps (they call it "start
+  next set" / "start rest"), the seam captures that set from live state: its
+  **elapsed work time** (`floor((Date.now() − anchorTs)/1000)`), the **weight**
+  currently entered (`weight`, stored canonical kg), and the **plan's reps** for
+  that set index → a `SeriesLog { reps, weightKg, workSeconds, volumeKg }`
+  appended to the current exercise. The UI never assembles this; `tap()`'s
+  signature is unchanged.
+- **Per-set progress is `completedSets` + `timer.currentSeries`/`plannedSeries`.**
+  `completedSets` is the ordered list of the current exercise's finished sets in
+  **display units** (e.g. render "Set 1 · 12 × 80 kg · 0:45"); `currentSeries`/
+  `plannedSeries` give the "Set 2 of 4" counter for the set in progress. Both
+  reset when `nextExercise()` moves to the next exercise.
 - **Weight** is a single field per exercise, in the user's **display unit**
   (`unit`); the seam converts to canonical kg internally (D11). `previousWeight`
   is display-only reference. Unset weight records as `0` kg.
@@ -497,7 +621,8 @@ ui/        WorkoutModeScreen(dayId) · WorkoutModeBody · SessionOverview ·
            ExerciseView · Stopwatch · SuccessView    ← import only ../logic + shared/ui
 logic/     useWorkoutSession.ts (the seam) · store.ts (Zustand hot state) ·
            useTimerTick.ts (private display interval) · model.ts (pure: defaultRest
-           mode, plan→view mappers, tap reducer, kg↔display conversion D11)
+           mode, plan→view mappers, tap reducer w/ SeriesLog capture, per-exercise
+           total derivations, kg↔display conversion D11)
                                                        ← imports ../api + routine-generation
                                                          & profile-goals barrels (unit, D11)
 api/       sessionRepo.ts                             ← imports @/shared/db + ../types only
@@ -513,7 +638,7 @@ saveInProgress(session: WorkoutSession): Promise<void>;            // put (per-t
 clearInProgress(routineId: string, dayId: string): Promise<void>;  // delete on finish
 saveCompleted(session: CompletedSession): Promise<void>;           // put
 updateRatings(id: string, r: { difficulty?: number; fatigue?: number }): Promise<void>;
-getPreviousWeight(exerciseId: string): Promise<number | null>;     // kg; completedAt desc scan, skips weightKg<=0 (D6)
+getPreviousWeight(exerciseId: string): Promise<number | null>;     // kg; completedAt desc scan; last SeriesLog with weightKg>0 of the newest matching ExerciseLog (D6)
 ```
 
 ## Risks / Trade-offs
@@ -529,9 +654,15 @@ getPreviousWeight(exerciseId: string): Promise<number | null>;     // kg; comple
 - **Regeneration nukes previous-weight history** (D6) → accepted for MVP;
   documented; name-fallback is the future path. It degrades gracefully to "no
   reference," which is also the designated first scope cut.
-- **Varied per-set reps flattened to one figure** (D1) → reference-only data,
-  not analyzed yet; the seam still exposes `repsPerSet` for display so nothing is
-  hidden from the user, only from the record.
+- **Reps/volume are planned, not counted** (revised D1) → each `SeriesLog.reps`
+  is the plan's reps for that set index and `volumeKg = weightKg × planned reps`,
+  since rep-counting is a non-goal. The record captures prescribed load at the
+  entered weight, not measured output — honest and clearly labelled. (This
+  revision *retires* the old "varied reps flattened to `sets[0]`" limitation:
+  12/10/8 is now stored per set.)
+- **Stored-total drift avoided** → no denormalized exercise total (`workSeconds`/
+  `volumeKg`) is persisted; totals derive from `series[]` via pure helpers, so a
+  stored total can never disagree with the array.
 - **Reshaping frozen seams** could ripple to consumers → the only consumer is
   `WorkoutModeBody` (a placeholder) and the barrel; calendar (C) isn't built.
   `CompletedSession` stays exported, so the sole cross-feature contract holds.
@@ -547,16 +678,24 @@ non-indexed row *fields* change, and both stores are empty on every device.
 Rollback = revert the change; nothing durable was reshaped. The
 `config.yaml` framing line is updated (below) to match the shipped behavior.
 
-**`config.yaml` edit made by this change.** The framing-v1 line —
-*"Workout mode logs actual weight + reps + rest per set; rest timer has
-skip/exit + restart; sessions resume at the exact set after interruption."* — is
-now false. It is revised to the per-exercise aggregate + single-stopwatch +
-resume-at-exercise reality this change establishes, with a note that it
-supersedes framing-v1 (PO Key decision 1). Every agent inherits the corrected
-framing.
+**`config.yaml` edit made by this change.** The product-decision line is kept
+authoritative. After the 2026-07-11 revision it reads as: workout mode logs
+**per-series** data — each set's weight, the plan's reps, elapsed work time, and
+volume (`weight × reps`) — with rest kept as a per-exercise aggregate; a single
+tap-to-start stopwatch cycles ready → work (up) → rest (down) → overtime; sessions
+resume at the exercise/set in progress after interruption. This supersedes both
+framing-v1 and the interim per-exercise-aggregate wording. Every agent inherits
+the corrected framing.
 
 ## Open Questions
 
+- **Per-series rest** — revised D1 keeps rest as an exercise-level aggregate
+  (`ExerciseLog.restSeconds`). If rest-density analytics or per-set rest display
+  are ever wanted, add `restSeconds` to `SeriesLog` (banked by having the
+  rest→ready tap patch the last-pushed set). Deferred; not in the PO's ask.
+- **Previous-weight extraction across varying sets** — D6 returns the last
+  positive-weight set of the newest matching exercise. If users prefer "set-1
+  weight" or "top set," it is a one-line repo change; revisit on feedback.
 - **Previous-weight after regeneration** — ship id-only match (D6); revisit a
   prefer-id-then-normalized-name match if users report losing references across
   regenerations. Only `sessionRepo.getPreviousWeight` changes.

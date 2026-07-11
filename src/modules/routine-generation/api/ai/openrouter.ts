@@ -31,8 +31,14 @@ function parseBody(payload: unknown): RequestBody | null {
   if (typeof payload !== "object" || payload === null) return null;
   const body = payload as {
     prompt?: unknown;
-    profile?: { bodyweightKg?: unknown; unit?: unknown };
-    goals?: { focus?: unknown; daysPerWeek?: unknown };
+    profile?: {
+      gender?: unknown;
+      age?: unknown;
+      bodyweightKg?: unknown;
+      heightCm?: unknown;
+      unit?: unknown;
+    };
+    goals?: { focus?: unknown; daysPerWeek?: unknown; notes?: unknown };
   };
 
   const prompt = typeof body.prompt === "string" ? body.prompt : null;
@@ -40,14 +46,24 @@ function parseBody(payload: unknown): RequestBody | null {
 
   const focus = body.goals?.focus;
   const daysPerWeek = body.goals?.daysPerWeek;
+  const gender = body.profile?.gender;
+  const age = body.profile?.age;
   const unit = body.profile?.unit;
   if (typeof focus !== "string") return null;
   if (typeof daysPerWeek !== "number") return null;
+  if (typeof gender !== "string") return null;
+  if (typeof age !== "number") return null;
   if (unit !== "metric" && unit !== "imperial") return null;
 
-  const ctx: PromptContext = { focus, daysPerWeek, unit };
+  const ctx: PromptContext = { focus, daysPerWeek, gender, age, unit };
   if (typeof body.profile?.bodyweightKg === "number") {
     ctx.bodyweightKg = body.profile.bodyweightKg;
+  }
+  if (typeof body.profile?.heightCm === "number") {
+    ctx.heightCm = body.profile.heightCm;
+  }
+  if (typeof body.goals?.notes === "string" && body.goals.notes.trim() !== "") {
+    ctx.notes = body.goals.notes;
   }
   return { prompt, ctx };
 }

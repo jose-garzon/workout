@@ -1,12 +1,17 @@
 import { WorkoutModeScreen } from "@/modules/workout-mode/ui/WorkoutModeScreen";
 
 /**
- * Workout-mode route (design.md §D8) — reached by tapping a day on home. The
- * `[dayId]` segment identifies which day; workout mode is an intentionally empty
- * screen in this change (Feature D fills it), so the id is not consumed yet.
- * Thin app-layer wrapper: `WorkoutModeScreen` is a client component that handles
- * its own `ssr:false` body loading.
+ * Workout-mode route (design.md §D8) — reached by tapping a day on home. In
+ * Next 15 `params` is a Promise, so this server component awaits it and passes
+ * the `dayId` string down; `WorkoutModeScreen` (a client component) resolves the
+ * active routine + session itself via `useWorkoutSession(dayId)`. Thin wrapper:
+ * no data access here (local-first — all reads happen in the browser).
  */
-export default function WorkoutDayPage() {
-  return <WorkoutModeScreen />;
+export default async function WorkoutDayPage({
+  params,
+}: {
+  params: Promise<{ dayId: string }>;
+}) {
+  const { dayId } = await params;
+  return <WorkoutModeScreen dayId={dayId} />;
 }

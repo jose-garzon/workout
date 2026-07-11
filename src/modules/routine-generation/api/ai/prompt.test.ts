@@ -10,7 +10,10 @@ import { buildRoutinePrompt, type PromptContext } from "./prompt";
 const ctx: PromptContext = {
   focus: "hypertrophy",
   daysPerWeek: 5,
+  gender: "female",
+  age: 34,
   bodyweightKg: 80,
+  heightCm: 180,
   unit: "metric",
 };
 
@@ -27,6 +30,44 @@ describe("buildRoutinePrompt", () => {
     expect(user.content).toContain("hypertrophy");
     expect(user.content).toContain("5");
     expect(user.content).toContain("chest priority");
+  });
+
+  it("folds gender and age into the user message", () => {
+    const [, user] = buildRoutinePrompt("anything", ctx);
+    expect(user.content).toContain("Gender: female.");
+    expect(user.content).toContain("Age: 34.");
+  });
+
+  it("renders height in the user's units, and omits it when absent", () => {
+    const metric = buildRoutinePrompt("x", ctx)[1].content;
+    expect(metric).toContain("180 cm");
+
+    const imperial = buildRoutinePrompt("x", { ...ctx, unit: "imperial" })[1]
+      .content;
+    // 180cm ≈ 70.9in → 5 ft 11 in.
+    expect(imperial).toContain("5 ft 11 in");
+
+    const { heightCm: _omit, ...noHeight } = ctx;
+    expect(buildRoutinePrompt("x", noHeight)[1].content).not.toContain(
+      "Height",
+    );
+  });
+
+  it("folds goal notes when present, and omits the line when blank", () => {
+    const withNotes = buildRoutinePrompt("x", {
+      ...ctx,
+      notes: "recovering from a shoulder tweak",
+    })[1].content;
+    expect(withNotes).toContain(
+      "Additional goal notes: recovering from a shoulder tweak.",
+    );
+
+    expect(
+      buildRoutinePrompt("x", { ...ctx, notes: "  " })[1].content,
+    ).not.toContain("Additional goal notes");
+    expect(buildRoutinePrompt("x", ctx)[1].content).not.toContain(
+      "Additional goal notes",
+    );
   });
 
   it("instructs the model to author a subtitle", () => {
