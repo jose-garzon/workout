@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { CalendarWeekStrip } from "@/modules/calendar/ui/CalendarWeekStrip";
 import { Splash } from "@/modules/profile-goals/ui/Splash";
 import { RoutineHomeScreen } from "@/modules/routine-generation/ui/RoutineHomeScreen";
 
@@ -37,6 +38,7 @@ export default function HomePage() {
           heightCm={profile.heightCm}
           unit={profile.unit}
           notes={goals?.notes}
+          weekStrip={<CalendarWeekStrip />}
         />
       )}
     />

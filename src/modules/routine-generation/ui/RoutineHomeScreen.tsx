@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
@@ -37,6 +38,13 @@ export interface RoutineHomeScreenProps {
   heightCm?: number;
   unit: "metric" | "imperial";
   notes?: string;
+  /**
+   * The consistency week strip (calendar feature), supplied by the app
+   * composition layer — a feature's `ui/` may not import another feature
+   * (firewall rule 1), so `RoutineHomeScreen` never names `calendar` itself
+   * and just renders whatever node it's handed (design.md §1).
+   */
+  weekStrip?: ReactNode;
 }
 
 /** Human, specific copy per AI failure — never a raw technical string. */
@@ -70,6 +78,7 @@ export function RoutineHomeScreen({
   heightCm,
   unit,
   notes,
+  weekStrip,
 }: RoutineHomeScreenProps) {
   const { routine: active } = useActiveRoutine();
   const { status, progressMessage, error, generate, confirmSave, reset } =
@@ -141,6 +150,8 @@ export function RoutineHomeScreen({
         </span>
         <p className="text-body text-text-muted">{motivation}</p>
       </div>
+
+      {weekStrip}
 
       {/* This is the only flex-growing region in the layout, so it always
           absorbs exactly the leftover space between the identity block above

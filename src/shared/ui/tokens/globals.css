@@ -131,6 +131,18 @@ body {
   animation: wp-rise var(--dur-base) var(--ease-out);
 }
 
+/* Exit counterpart to `.anim-rise` (consistency-calendar's `ActivityDrawer` —
+   design-system.md only specced the entrance preset; dismissal needs its own
+   so AC2.5 "animates out, doesn't vanish synchronously" has something to
+   play and an `onAnimationEnd` to unmount on). Same motion, reverse
+   direction, `ease-in` (elements leaving) per the existing curve-role split. */
+.anim-rise-exit {
+  /* `forwards` holds the faded/lowered end state until React unmounts on
+     `onAnimationEnd`; without it the element snaps back to its resting
+     (fully-visible) position for one frame → a flash after close. */
+  animation: wp-rise-exit var(--dur-fast) var(--ease-in) forwards;
+}
+
 .anim-press {
   transition: transform var(--dur-instant) var(--ease-standard);
 }
@@ -144,6 +156,19 @@ body {
 
 .anim-slide {
   animation: wp-slide var(--dur-slow) var(--ease-standard);
+}
+
+/* Exit counterpart to `.anim-slide` (consistency-calendar's `ActivityDrawer`
+   mobile full-screen drawer, slides back out to the right on dismiss) — same
+   rationale as `.anim-rise-exit` above: the design system only specced the
+   entrance preset, dismissal needs its own to animate out instead of
+   vanishing synchronously. Reverse direction, `ease-in` per the existing
+   "elements leaving" curve role. */
+.anim-slide-exit {
+  /* `forwards` holds the off-screen (translateX 100%) end state until React
+     unmounts on `onAnimationEnd`; without it the panel snaps back to
+     translateX(0) for one frame after the slide → a flash after close. */
+  animation: wp-slide-exit var(--dur-fast) var(--ease-in) forwards;
 }
 
 /* Smooth native scrolling for JS-driven `scrollIntoView` calls (e.g. the
@@ -176,6 +201,17 @@ body {
   }
 }
 
+@keyframes wp-rise-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
 @keyframes wp-success-pulse {
   0% {
     transform: scale(0.85);
@@ -194,6 +230,15 @@ body {
   }
   to {
     transform: translateX(0);
+  }
+}
+
+@keyframes wp-slide-exit {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
   }
 }
 
@@ -299,7 +344,9 @@ body {
    timer component itself, not in these decorative presets). */
 @media (prefers-reduced-motion: reduce) {
   .anim-rise,
+  .anim-rise-exit,
   .anim-slide,
+  .anim-slide-exit,
   .anim-success-pulse,
   .anim-logo-draw .wp-logo-glyph {
     animation: none;

@@ -1,26 +1,40 @@
 /**
  * calendar (Feature C) — owned domain types. Leaf module: imports nothing.
- * Derived, read-only views over completed sessions (no dates/planned/missed).
+ * Three purpose-fit, read-only views derived from completed sessions
+ * (design.md §4).
  */
 
-/** A single day cell. `date` is a local ISO date (yyyy-mm-dd). */
-export interface CalendarDay {
+/**
+ * Minimal completed-session projection the views need (internal — not exported
+ * from the barrel). `calendarRepo` maps rows to this; `model.ts` buckets it.
+ */
+export interface CompletedRef {
+  completedAt: number;
+  dayId: string;
+}
+
+/** One day of the home week strip (Monday → Sunday). */
+export interface WeekStripDay {
+  /** Local ISO date, yyyy-mm-dd. */
   date: string;
-  completedSessionCount: number;
+  /** Display label, "Sat 11 Jul". */
+  label: string;
+  /** True when ≥1 session completed that day. */
+  worked: boolean;
+  /** Most-recent session's routine-day name, or null (un-worked / day dropped). */
+  sessionName: string | null;
 }
 
-/** One week row. `completedCount` of `targetCount` drives "3 of 4 this week". */
-export interface CalendarWeek {
-  /** Local ISO date (yyyy-mm-dd) of the week's first day. */
-  weekStartDate: string;
-  days: CalendarDay[];
-  completedCount: number;
-  targetCount: number;
+/** "N of M this week" — N distinct worked days, M active-routine day count. */
+export interface WeeklyProgress {
+  completed: number;
+  target: number;
 }
 
-/** Rolling consistency stats derived from completed sessions. */
-export interface ConsistencySummary {
-  weeklyTarget: number;
-  weeklyCompleted: number;
-  currentStreakWeeks: number;
+/** One square of the year grid (Monday-first, current year). */
+export interface YearGridDay {
+  /** Local ISO date, or null for a leading pad cell (Monday alignment). */
+  date: string | null;
+  /** True when ≥1 session completed that day; always false for pad cells. */
+  worked: boolean;
 }

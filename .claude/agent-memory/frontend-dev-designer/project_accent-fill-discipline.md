@@ -31,4 +31,8 @@ at all) since it has no discrete "selected vs. unselected" siblings to
 contrast.
 
 See also [[project-design-system-draft]] for the wider token/identity
-context this rule lives in.
+context this rule lives in, and [[project-consistency-calendar-ui]] for a
+second named exception (a repeated status mark in a data heatmap — every
+"worked" day in the consistency calendar's week strip/year grid — is a
+different grammar from a "selected control" and is allowed full `accent`
+fill even with many on screen at once).

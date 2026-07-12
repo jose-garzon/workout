@@ -5,8 +5,4 @@
 
 export type { CalendarApi } from "./logic/useCalendar";
 export { useCalendar } from "./logic/useCalendar";
-export type {
-  CalendarDay,
-  CalendarWeek,
-  ConsistencySummary,
-} from "./types";
+export type { WeeklyProgress, WeekStripDay, YearGridDay } from "./types";
