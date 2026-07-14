@@ -2,12 +2,14 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useRoutineEdit } from "@/modules/routine-generation";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
 import { useActiveRoutine } from "../logic/useActiveRoutine";
 import { useRoutineGeneration } from "../logic/useRoutineGeneration";
 import { BuildingIndicator } from "./BuildingIndicator";
 import { Composer } from "./Composer";
+import { RoutineEditor } from "./RoutineEditor";
 import { RoutineSummary } from "./RoutineSummary";
 
 /**
@@ -16,10 +18,11 @@ import { RoutineSummary } from "./RoutineSummary";
  * the generator needs) arrives as props from the app composition layer, because
  * a feature's `ui/` may not import another feature (firewall rule 1).
  *
- * Adopt-vs-replace (§D5): the FIRST routine adopts frictionlessly — an effect
- * calls `confirmSave()` the moment a result is held and no routine yet exists.
- * When a routine already exists, a held result instead surfaces a
- * replace-confirmation; `confirmSave()` runs only on explicit confirm.
+ * Adopt (§D5): the FIRST routine adopts frictionlessly — an effect calls
+ * `confirmSave()` the moment a result is held and no routine yet exists. Once
+ * a routine exists, the build composer is hidden entirely (edit-routine
+ * design.md §F, BREAKING) — editing (`RoutineEditor`, below) is the single
+ * post-creation path, so there is no longer a "replace" case to confirm.
  */
 export interface RoutineHomeScreenProps {
   displayName?: string;
@@ -90,10 +93,22 @@ export function RoutineHomeScreen({
   const [prefill, setPrefill] = useState("");
   const [composerKey, setComposerKey] = useState(0);
   const thinkingLogRef = useRef<HTMLDivElement>(null);
+  // The floating editor's open/closed state is local UI state, not part of
+  // the `useRoutineEdit` seam (edit-routine design.md §E). `editButtonRef`
+  // lets the (non-modal) editor return focus to the button that opened it —
+  // the button lives in `RoutineSummary`, a sibling, not inside the editor.
+  const [editorOpen, setEditorOpen] = useState(false);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  // Read only for the background-block below — `RoutineEditor` owns the
+  // actual `submit`/`reset` calls. While an edit is in flight the rest of
+  // the screen must stop being reachable by pointer/keyboard/AT (extension
+  // to design.md §F); idle/success/error all restore it, so only
+  // `"editing"` counts as busy — an error must stay retriable/dismissible.
+  const { status: editStatus } = useRoutineEdit();
+  const editBusy = editStatus === "editing";
 
   const name = displayName?.trim() || "there";
   const generating = status === "generating";
-  const awaitingReplace = status === "ready" && active !== null;
 
   // First routine adopts frictionlessly (§D5): once a result is held and no
   // routine exists yet, persist it immediately — no extra confirm step.
@@ -138,22 +153,23 @@ export function RoutineHomeScreen({
     : "Tell me how you train and I'll build your split.";
 
   return (
-    <AppShell title="Home">
-      {/* Identity block: greeting + goal + motivational line. `AppShell`'s
+    <>
+      <AppShell title="Home" inert={editBusy}>
+        {/* Identity block: greeting + goal + motivational line. `AppShell`'s
           own `<h1>{title}</h1>` is `sr-only` (the header shows only the Logo
           + theme toggle), so this `<h2>` is the screen's one VISIBLE
           heading. */}
-      <div className="flex flex-col gap-[var(--space-3)]">
-        <h2 className="text-title-1">Hey, {name}</h2>
-        <span className="text-micro inline-flex h-[var(--space-7)] w-fit items-center bg-accent-wash px-[var(--space-4)] text-accent-text">
-          {goalLabel(focus)}
-        </span>
-        <p className="text-body text-text-muted">{motivation}</p>
-      </div>
+        <div className="flex flex-col gap-[var(--space-3)]">
+          <h2 className="text-title-1">Hey, {name}</h2>
+          <span className="text-micro inline-flex h-[var(--space-7)] w-fit items-center bg-accent-wash px-[var(--space-4)] text-accent-text">
+            {goalLabel(focus)}
+          </span>
+          <p className="text-body text-text-muted">{motivation}</p>
+        </div>
 
-      {weekStrip}
+        {weekStrip}
 
-      {/* This is the only flex-growing region in the layout, so it always
+        {/* This is the only flex-growing region in the layout, so it always
           absorbs exactly the leftover space between the identity block above
           and the composer dock below — on a short state (the empty invite,
           or a routine with one day) that CENTERS the content in the middle
@@ -162,90 +178,84 @@ export function RoutineHomeScreen({
           `OnboardingForm`'s short steps). The composer dock's own position
           is unaffected: it was already flush to the bottom via this sibling
           absorbing the remainder, not via its own margin, so it never moves. */}
-      <div className="flex flex-1 flex-col justify-center">
-        {active ? (
-          <RoutineSummary routine={active} />
-        ) : status === "idle" ? (
-          <div className="flex flex-col gap-[var(--space-4)]">
-            <p className="text-body text-text-muted">
-              No routine yet — describe your training below to build one.
-            </p>
-            <button
-              type="button"
-              onClick={useExamplePrompt}
-              className="anim-press flex flex-col items-start gap-[var(--space-2)] border border-border bg-surface px-[var(--space-5)] py-[var(--space-4)] text-left transition-colors hover:border-text hover:bg-elevated-surface"
-            >
-              <span className="text-micro text-accent-text">Try</span>
-              <span className="text-body text-text">“{EXAMPLE_PROMPT}”</span>
-            </button>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-[var(--space-3)] pt-[var(--space-8)]">
-        {generating && <BuildingIndicator />}
-
-        {progressMessage !== "" && (
-          <div
-            ref={thinkingLogRef}
-            role="log"
-            aria-live="polite"
-            aria-label="What the generator is thinking"
-            className="max-h-[var(--space-11)] overflow-y-auto border-l-2 border-border pl-[var(--space-4)]"
-          >
-            <p className="text-caption text-text-muted">{progressMessage}</p>
-          </div>
-        )}
-
-        {status === "error" && error && (
-          <div
-            role="alert"
-            className="flex items-center justify-between gap-[var(--space-4)] border border-danger px-[var(--space-4)] py-[var(--space-3)]"
-          >
-            <p className="text-caption text-danger-text">
-              {ERROR_MESSAGES[error.kind] ?? ERROR_MESSAGES.provider}
-            </p>
-            <Button size="sm" variant="secondary" onClick={reset}>
-              Dismiss
-            </Button>
-          </div>
-        )}
-
-        <Composer
-          key={composerKey}
-          initialValue={prefill}
-          focusOnMount={prefill !== ""}
-          onSubmit={onSubmit}
-          busy={generating}
-        />
-      </div>
-
-      {awaitingReplace && (
-        <div
-          className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-[rgba(0,0,0,0.6)] p-[var(--space-5)] sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="replace-title"
-        >
-          <div className="anim-rise flex w-full max-w-[520px] flex-col gap-[var(--space-5)] border border-border bg-elevated-surface p-[var(--space-6)]">
-            <h2 id="replace-title" className="text-title-2">
-              Replace your routine?
-            </h2>
-            <p className="text-body text-text-muted">
-              You already have an active routine. Building this new one will
-              discard the current one — this can't be undone.
-            </p>
-            <div className="flex flex-col gap-[var(--space-3)]">
-              <Button onClick={() => void confirmSave()}>
-                Replace routine
-              </Button>
-              <Button variant="secondary" onClick={reset}>
-                Keep current
-              </Button>
+        <div className="flex flex-1 flex-col justify-center">
+          {active ? (
+            <RoutineSummary
+              routine={active}
+              onEdit={() => setEditorOpen(true)}
+              editButtonRef={editButtonRef}
+            />
+          ) : status === "idle" ? (
+            <div className="flex flex-col gap-[var(--space-4)]">
+              <p className="text-body text-text-muted">
+                No routine yet — describe your training below to build one.
+              </p>
+              <button
+                type="button"
+                onClick={useExamplePrompt}
+                className="anim-press flex flex-col items-start gap-[var(--space-2)] border border-border bg-surface px-[var(--space-5)] py-[var(--space-4)] text-left transition-colors hover:border-text hover:bg-elevated-surface"
+              >
+                <span className="text-micro text-accent-text">Try</span>
+                <span className="text-body text-text">“{EXAMPLE_PROMPT}”</span>
+              </button>
             </div>
-          </div>
+          ) : null}
         </div>
-      )}
-    </AppShell>
+
+        {/* Build composer + its status UI only apply before a routine exists
+          (AC1.2, edit-routine design.md §F, BREAKING) — once one exists,
+          editing via `RoutineEditor` below is the single post-creation path. */}
+        {!active && (
+          <div className="flex flex-col gap-[var(--space-3)] pt-[var(--space-8)]">
+            {generating && <BuildingIndicator />}
+
+            {progressMessage !== "" && (
+              <div
+                ref={thinkingLogRef}
+                role="log"
+                aria-live="polite"
+                aria-label="What the generator is thinking"
+                className="max-h-[var(--space-11)] overflow-y-auto border-l-2 border-border pl-[var(--space-4)]"
+              >
+                <p className="text-caption text-text-muted">
+                  {progressMessage}
+                </p>
+              </div>
+            )}
+
+            {status === "error" && error && (
+              <div
+                role="alert"
+                className="flex items-center justify-between gap-[var(--space-4)] border border-danger px-[var(--space-4)] py-[var(--space-3)]"
+              >
+                <p className="text-caption text-danger-text">
+                  {ERROR_MESSAGES[error.kind] ?? ERROR_MESSAGES.provider}
+                </p>
+                <Button size="sm" variant="secondary" onClick={reset}>
+                  Dismiss
+                </Button>
+              </div>
+            )}
+
+            <Composer
+              key={composerKey}
+              initialValue={prefill}
+              focusOnMount={prefill !== ""}
+              onSubmit={onSubmit}
+              busy={generating}
+            />
+          </div>
+        )}
+      </AppShell>
+
+      {/* A SIBLING of `AppShell`, never a child — `AppShell`'s `inert` prop
+          above disables its entire subtree while `editBusy`, and the editor
+          itself must stay reachable throughout (design.md §F extension). */}
+      <RoutineEditor
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        editButtonRef={editButtonRef}
+      />
+    </>
   );
 }

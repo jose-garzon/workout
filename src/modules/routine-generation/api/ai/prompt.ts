@@ -89,3 +89,34 @@ export function buildRoutinePrompt(
     { role: "user", content: lines.join("\n") },
   ];
 }
+
+const EDIT_SYSTEM_PROMPT = [
+  "You are editing an EXISTING gym routine. Apply ONLY the requested change and",
+  "return the FULL updated routine in the same JSON schema. Everything the",
+  "instruction does not mention must stay exactly the same — same day names,",
+  "same exercise names, same sets, reps, and rest. Do not rename or reorder",
+  "anything you were not asked to change.",
+  "Respond ONLY with JSON matching the provided schema — no prose, no markdown.",
+].join(" ");
+
+/**
+ * Build the chat messages for an EDIT request (design.md §B). `routine` is the
+ * user's current routine, already stripped of ids, echoed back purely as prompt
+ * context — it is not re-validated here (the RESPONSE is validated client-side).
+ */
+export function buildEditPrompt(
+  instruction: string,
+  routine: unknown,
+): ChatMessage[] {
+  const content = [
+    "Current routine:",
+    JSON.stringify(routine),
+    "",
+    `Requested change: ${instruction}`,
+  ].join("\n");
+
+  return [
+    { role: "system", content: EDIT_SYSTEM_PROMPT },
+    { role: "user", content },
+  ];
+}

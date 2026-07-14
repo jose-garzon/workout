@@ -26,12 +26,27 @@ import { ThemeToggle } from "@/shared/ui/components/ThemeToggle";
 export interface AppShellProps {
   title: string;
   children: ReactNode;
+  /**
+   * Set while a floating, non-modal overlay (e.g. `RoutineEditor` mid-edit,
+   * edit-routine design.md §F extension) needs the ENTIRE shell — header
+   * (logo, theme toggle) and main content alike — to stop being reachable by
+   * pointer, keyboard, or AT, without the heavier "modal + backdrop"
+   * treatment. The overlay itself must be a SIBLING of `AppShell`, never a
+   * child, or the native `inert` attribute (which applies to the whole
+   * subtree) would also disable the overlay. A subtle opacity dim is the
+   * only visual change — motion confirms a state change here, it doesn't
+   * decorate, and a plain opacity transition stays correct even under
+   * `prefers-reduced-motion` (design-system.md §2 "Motion" allows an opacity
+   * fade unconditionally).
+   */
+  inert?: boolean;
 }
 
-export function AppShell({ title, children }: AppShellProps) {
+export function AppShell({ title, children, inert = false }: AppShellProps) {
   return (
     <div
-      className="mx-auto flex min-h-dvh w-full max-w-[560px] flex-col bg-background pl-[max(env(safe-area-inset-left),var(--space-5))] pr-[max(env(safe-area-inset-right),var(--space-5))] sm:pl-[max(env(safe-area-inset-left),var(--space-7))] sm:pr-[max(env(safe-area-inset-right),var(--space-7))]"
+      inert={inert || undefined}
+      className={`mx-auto flex min-h-dvh w-full max-w-[560px] flex-col bg-background pl-[max(env(safe-area-inset-left),var(--space-5))] pr-[max(env(safe-area-inset-right),var(--space-5))] transition-opacity duration-[var(--dur-base)] sm:pl-[max(env(safe-area-inset-left),var(--space-7))] sm:pr-[max(env(safe-area-inset-right),var(--space-7))] ${inert ? "opacity-50" : "opacity-100"}`}
       style={{
         paddingTop: "max(env(safe-area-inset-top), var(--space-6))",
         paddingBottom: "max(env(safe-area-inset-bottom), var(--space-6))",

@@ -102,3 +102,40 @@ describe("handleGenerateRoutine — prompt assembly", () => {
     expect(response.status).toBe(400);
   });
 });
+
+const EDIT_BODY = {
+  mode: "edit",
+  instruction: "add a legs day with squats",
+  routine: {
+    name: "PPL",
+    days: [{ name: "Push", exercises: [{ name: "Bench", sets: [] }] }],
+  },
+};
+
+describe("handleGenerateRoutine — edit branch", () => {
+  it("accepts an edit body and folds the routine + instruction into the prompt", async () => {
+    const upstream = captureUpstream();
+
+    const response = await handleGenerateRoutine(request(EDIT_BODY));
+    expect(response.status).toBe(200);
+
+    const userMessage =
+      upstream.get()?.messages.find((m) => m.role === "user")?.content ?? "";
+    expect(userMessage).toContain("add a legs day with squats");
+    expect(userMessage).toContain("Push");
+  });
+
+  it("rejects an edit body with an empty instruction with a 400", async () => {
+    const response = await handleGenerateRoutine(
+      request({ ...EDIT_BODY, instruction: "   " }),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects an edit body whose routine is not an object with a 400", async () => {
+    const response = await handleGenerateRoutine(
+      request({ ...EDIT_BODY, routine: "nope" }),
+    );
+    expect(response.status).toBe(400);
+  });
+});

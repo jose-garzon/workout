@@ -1,5 +1,10 @@
 import { type AiError, aiErrorForStatus } from "./errors";
-import { buildRoutinePrompt, type PromptContext } from "./prompt";
+import {
+  buildEditPrompt,
+  buildRoutinePrompt,
+  type ChatMessage,
+  type PromptContext,
+} from "./prompt";
 import { rateLimitOk } from "./rateLimit";
 import { routineJsonSchema } from "./schema";
 
@@ -21,26 +26,24 @@ function jsonError(error: AiError, status: number): Response {
   return Response.json({ error }, { status });
 }
 
-interface RequestBody {
-  prompt: string;
-  ctx: PromptContext;
-}
+/**
+ * Both request shapes reduce to the chat messages OpenRouter is called with —
+ * a build body via `buildRoutinePrompt`, an edit body via `buildEditPrompt`
+ * (design.md §B). The `response_format` is identical for both.
+ */
 
-/** Validate + narrow the client body into a prompt + prompt context. */
-function parseBody(payload: unknown): RequestBody | null {
-  if (typeof payload !== "object" || payload === null) return null;
-  const body = payload as {
-    prompt?: unknown;
-    profile?: {
-      gender?: unknown;
-      age?: unknown;
-      bodyweightKg?: unknown;
-      heightCm?: unknown;
-      unit?: unknown;
-    };
-    goals?: { focus?: unknown; daysPerWeek?: unknown; notes?: unknown };
+/** Validate + narrow a build body into a prompt + prompt context. */
+function parseBuildBody(body: {
+  prompt?: unknown;
+  profile?: {
+    gender?: unknown;
+    age?: unknown;
+    bodyweightKg?: unknown;
+    heightCm?: unknown;
+    unit?: unknown;
   };
-
+  goals?: { focus?: unknown; daysPerWeek?: unknown; notes?: unknown };
+}): ChatMessage[] | null {
   const prompt = typeof body.prompt === "string" ? body.prompt : null;
   if (prompt === null || prompt.trim() === "") return null;
 
@@ -65,7 +68,32 @@ function parseBody(payload: unknown): RequestBody | null {
   if (typeof body.goals?.notes === "string" && body.goals.notes.trim() !== "") {
     ctx.notes = body.goals.notes;
   }
-  return { prompt, ctx };
+  return buildRoutinePrompt(prompt, ctx);
+}
+
+/**
+ * Validate an edit body. The `routine` is the user's own on-device data echoed
+ * back as prompt context — required to be an object, but NOT deeply re-validated
+ * (design.md §B): the RESPONSE is Zod-validated client-side.
+ */
+function parseEditBody(body: {
+  instruction?: unknown;
+  routine?: unknown;
+}): ChatMessage[] | null {
+  const instruction =
+    typeof body.instruction === "string" ? body.instruction : null;
+  if (instruction === null || instruction.trim() === "") return null;
+  if (typeof body.routine !== "object" || body.routine === null) return null;
+  return buildEditPrompt(instruction, body.routine);
+}
+
+/** Narrow the client body into the chat messages, branching on `mode`. */
+function parseBody(payload: unknown): ChatMessage[] | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  if ((payload as { mode?: unknown }).mode === "edit") {
+    return parseEditBody(payload as Parameters<typeof parseEditBody>[0]);
+  }
+  return parseBuildBody(payload as Parameters<typeof parseBuildBody>[0]);
 }
 
 /** Client IP for rate limiting — first `x-forwarded-for` hop, else `x-real-ip`. */
@@ -104,12 +132,10 @@ export async function handleGenerateRoutine(
     return jsonError({ kind: "parse" }, 400);
   }
 
-  const body = parseBody(payload);
-  if (body === null) {
+  const messages = parseBody(payload);
+  if (messages === null) {
     return jsonError({ kind: "parse" }, 400);
   }
-
-  const messages = buildRoutinePrompt(body.prompt, body.ctx);
 
   let upstream: Response;
   try {

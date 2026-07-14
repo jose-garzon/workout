@@ -1,6 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { forwardRef } from "react";
 
 /**
  * Button — the one primitive every feature reuses (design-system.md §2
@@ -39,30 +40,36 @@ export interface ButtonProps
   children: ReactNode;
 }
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  fullWidth = false,
-  disabled,
-  children,
-  ...rest
-}: ButtonProps) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      className={[
-        "text-body-strong anim-press inline-flex select-none items-center justify-center gap-2 rounded-[var(--radius)] transition-opacity",
-        "disabled:pointer-events-none disabled:opacity-40",
-        SIZE_CLASSES[size],
-        VARIANT_CLASSES[variant],
-        fullWidth ? "w-full" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
-}
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(
+    {
+      variant = "primary",
+      size = "md",
+      fullWidth = false,
+      disabled,
+      children,
+      ...rest
+    },
+    ref,
+  ) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        disabled={disabled}
+        className={[
+          "text-body-strong anim-press inline-flex select-none items-center justify-center gap-2 rounded-[var(--radius)] transition-opacity",
+          "disabled:pointer-events-none disabled:opacity-40",
+          SIZE_CLASSES[size],
+          VARIANT_CLASSES[variant],
+          fullWidth ? "w-full" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        {...rest}
+      >
+        {children}
+      </button>
+    );
+  },
+);

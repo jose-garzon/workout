@@ -1,6 +1,6 @@
 ---
 name: project-routine-home-polish
-description: routine-generation home screen polish, 2 rounds (2026-07-09) — visible greeting, single composer focus ring, example prompt, centered-content layout fix; round 2: log auto-scroll, rotating verbs, bigger CTA copy, day-row chevrons; stale next-server port gotcha
+description: routine-generation home screen polish + edit-routine verification (2026-07-09/12) — layout fixes, stale-port/chromium-cli gotchas, a text-content regression only live verification caught, AppShell `inert` pattern for background-blocking overlays
 metadata:
   type: project
 ---
@@ -168,3 +168,62 @@ of `ready`, so the auto-adopt effect never fires and never resets
 `progressMessage` mid-inspection — a real routine racing straight into
 auto-save makes the log disappear before Playwright can even poll for
 it).
+
+**Addendum (2026-07-12, edit-routine verification):** confirmed again — a
+fresh `bun run dev` on a machine with stale `next-server` processes already
+holding 3000/3001 does NOT error, it silently falls back to the next free
+port (3002, etc.) and prints `⚠ Port 3000 is in use by an unknown process,
+using available port XXXX instead.` in its own stdout log. Don't assume/curl
+port 3000 — read the dev server's own log output for the port it actually
+bound. Also: `chromium-cli` is NOT installed in this environment — the `run`
+skill's primary path doesn't apply here; fall back to its own suggested
+adaptation (`import { chromium } from "@playwright/test"` — the bare
+`"playwright"` package specifier 404s, `@playwright/test` is the one
+present — `chromium.launch({ args: ["--no-sandbox"] })`, script copied into
+the repo root per the ESM-resolves-from-cwd note above).
+
+**Addendum 2 (2026-07-12, edit-routine background-block feature) — caught a
+real accessible-name regression only because of live re-verification, not
+static review.** When I swapped a hand-rolled `<button>Edit routine</button>`
+to the shared `Button` primitive (`<Button>...Edit routine</Button>`) earlier
+in the same session, the button's visible/accessible text silently became
+just `"Edit"` on disk — `git diff` confirmed it, Biome/tsc were both silent
+(neither typechecks JSX text content), and it wasn't caught until a later
+live Playwright run failed to find `getByRole("button", {name: "Edit
+routine"})`. **Lesson: after any edit that touches literal button/label copy
+that an e2e/AC depends on, re-run a live check (or at minimum `grep` the
+exact string back out of the file) — don't trust "the Edit tool said
+success" as proof the text landed correctly, especially right after a
+same-session refactor of the surrounding JSX.** Also confirms the value of
+this project's established "verify via a real Playwright render" bar
+([[project-logo-component]]) over trusting code review alone.
+
+**Addendum 3 — native `inert` for "block background while a floating
+non-modal overlay is busy."** Added an `inert?: boolean` prop to `AppShell`
+(applied to the shell's root div) so a screen can block pointer/keyboard/AT
+reach into everything BEHIND a floating overlay (edit-routine's
+`RoutineEditor`, mid-submit) without the heavier modal+scrim treatment. Key
+constraint: **the overlay itself must be a true DOM sibling of `AppShell`,
+never a child** — `inert` applies to the whole subtree, so if the overlay
+were nested inside the inert-able container it would disable itself too;
+`RoutineHomeScreen` now returns `<><AppShell inert={editBusy}>...</AppShell>
+<RoutineEditor .../></>`, a Fragment with the editor lifted OUT. Verified
+live (not just code review) with real Playwright pointer clicks (a
+non-forced `.click()` on the theme toggle / a day link, short timeout, mid a
+long artificial delay) — confirmed genuinely blocked while `status ===
+"editing"` and restored on BOTH success and error. **Gotcha for future
+verification of `inert`:** don't test "is it blocked" with a *long*
+Playwright click timeout — `.click()` polls/retries until actionable, so if
+the async operation resolves before the timeout elapses, the click
+"succeeds" (misleadingly) once `inert` lifts naturally, telling you nothing
+about whether it was blocked while inert. Use a short click timeout well
+inside a deliberately-long mock delay, or check `document.querySelector(
+"[inert]")` between the two. Also: `getComputedStyle(el).pointerEvents`
+stays `"auto"` even when genuinely inert (the browser's block is internal
+hit-testing, not a visible CSS value) — don't use computed style to verify
+it; use an actual (non-forced) click attempt or a real accessibility-tree
+query instead. Playwright's `getByRole` reliably excludes an inert `<button>`
+from its role query (count 0) but was inconsistent on an inert `<a>` in one
+run (still counted 1) even though a real click on that same link WAS
+blocked — trust the real-click test over the role-count test when the two
+disagree.

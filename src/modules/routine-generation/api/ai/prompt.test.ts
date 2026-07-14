@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildRoutinePrompt, type PromptContext } from "./prompt";
+import {
+  buildEditPrompt,
+  buildRoutinePrompt,
+  type PromptContext,
+} from "./prompt";
 
 /**
  * buildRoutinePrompt is pure and server-safe (design.md §D2): the user's
@@ -93,6 +97,38 @@ describe("buildRoutinePrompt", () => {
   it("is deterministic and side-effect-free", () => {
     expect(buildRoutinePrompt("same", ctx)).toEqual(
       buildRoutinePrompt("same", ctx),
+    );
+  });
+});
+
+describe("buildEditPrompt", () => {
+  const routine = {
+    name: "PPL",
+    days: [{ name: "Push", exercises: [{ name: "Bench", sets: [] }] }],
+  };
+
+  it("emits a system message and a single user message", () => {
+    const messages = buildEditPrompt("add a legs day", routine);
+    expect(messages).toHaveLength(2);
+    expect(messages[0].role).toBe("system");
+    expect(messages[1].role).toBe("user");
+  });
+
+  it("instructs the model to apply only the requested change and keep the rest", () => {
+    const [system] = buildEditPrompt("add a legs day", routine);
+    expect(system.content).toContain("ONLY");
+    expect(system.content.toLowerCase()).toContain("json schema");
+  });
+
+  it("folds the current routine JSON and the instruction into the user message", () => {
+    const [, user] = buildEditPrompt("add a legs day", routine);
+    expect(user.content).toContain(JSON.stringify(routine));
+    expect(user.content).toContain("add a legs day");
+  });
+
+  it("is deterministic and side-effect-free", () => {
+    expect(buildEditPrompt("x", routine)).toEqual(
+      buildEditPrompt("x", routine),
     );
   });
 });

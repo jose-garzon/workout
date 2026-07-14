@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import type { RefObject } from "react";
+import { Button } from "@/shared/ui/primitives/Button";
 import type { Routine } from "../types";
 
 /**
@@ -13,9 +15,39 @@ import type { Routine } from "../types";
  * Leads with the routine's own (often AI-authored, personality-bearing) name
  * as a real, visible section heading — previously nothing on screen named
  * the active routine at all.
+ *
+ * The edit button (edit-routine design.md §F) sits in this same title row —
+ * it's present only when a routine exists, which this component only ever
+ * renders with. `editButtonRef` is handed to `RoutineHomeScreen` so it can
+ * return focus here when the floating editor closes (design.md §F non-modal
+ * focus model — the editor doesn't own a reference to a button it doesn't
+ * render).
  */
 export interface RoutineSummaryProps {
   routine: Routine;
+  onEdit: () => void;
+  editButtonRef: RefObject<HTMLButtonElement | null>;
+}
+
+/** A plain stroke pencil (design-system.md §2 "Iconography"). */
+function EditIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      width="16"
+      height="16"
+      fill="none"
+    >
+      <path
+        d="M12.5 3.5l4 4L6 18H2v-4L12.5 3.5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="butt"
+        strokeLinejoin="miter"
+      />
+    </svg>
+  );
 }
 
 /** A short "3 exercises" style hint for a day row. */
@@ -51,15 +83,30 @@ function ChevronIcon({ className }: { className?: string }) {
   );
 }
 
-export function RoutineSummary({ routine }: RoutineSummaryProps) {
+export function RoutineSummary({
+  routine,
+  onEdit,
+  editButtonRef,
+}: RoutineSummaryProps) {
   return (
     <section
       aria-labelledby="routine-summary-heading"
       className="flex flex-col gap-[var(--space-4)]"
     >
-      <h3 id="routine-summary-heading" className="text-title-2">
-        {routine.name}
-      </h3>
+      <div className="flex items-center justify-between gap-[var(--space-4)]">
+        <h3 id="routine-summary-heading" className="text-title-2">
+          {routine.name}
+        </h3>
+        <Button
+          ref={editButtonRef}
+          variant="secondary"
+          size="sm"
+          onClick={onEdit}
+        >
+          <EditIcon />
+          Edit routine
+        </Button>
+      </div>
       <ul className="flex flex-col gap-[var(--space-3)]">
         {routine.days.map((day, index) => (
           <li key={day.id}>

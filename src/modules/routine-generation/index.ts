@@ -8,6 +8,11 @@ export type { AiError } from "./api/ai/errors";
 export type { ActiveRoutineApi } from "./logic/useActiveRoutine";
 export { useActiveRoutine } from "./logic/useActiveRoutine";
 export type {
+  EditStatus,
+  RoutineEdit,
+} from "./logic/useRoutineEdit";
+export { useRoutineEdit } from "./logic/useRoutineEdit";
+export type {
   GenStatus,
   RoutineGeneration,
 } from "./logic/useRoutineGeneration";

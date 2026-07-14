@@ -46,13 +46,11 @@ function isOffline(): boolean {
 }
 
 /**
- * POST a generation request. Surfaces `{ kind: 'offline' }` without a network
- * hit. `ctx` is optional so the foundation smoke test can dispatch a bare prompt.
+ * The one dispatch to the proxy, shared by build + edit (design.md §B). Surfaces
+ * `{ kind: 'offline' }` without a network hit; otherwise returns the streaming
+ * `Response` or a specific `AiError`.
  */
-export async function postGenerateRoutine(
-  prompt: string,
-  ctx?: GenerateContext,
-): Promise<GenerateOutcome> {
+async function postToProxy(body: object): Promise<GenerateOutcome> {
   if (isOffline()) {
     return { ok: false, error: { kind: "offline" } };
   }
@@ -60,21 +58,7 @@ export async function postGenerateRoutine(
     const response = await fetch("/api/generate-routine", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        profile: ctx
-          ? {
-              gender: ctx.gender,
-              age: ctx.age,
-              unit: ctx.unit,
-              bodyweightKg: ctx.bodyweightKg,
-              heightCm: ctx.heightCm,
-            }
-          : undefined,
-        goals: ctx
-          ? { focus: ctx.focus, daysPerWeek: ctx.daysPerWeek, notes: ctx.notes }
-          : undefined,
-      }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       return { ok: false, error: aiErrorForStatus(response.status) };
@@ -83,6 +67,31 @@ export async function postGenerateRoutine(
   } catch {
     return { ok: false, error: { kind: "network" } };
   }
+}
+
+/**
+ * POST a generation request. Surfaces `{ kind: 'offline' }` without a network
+ * hit. `ctx` is optional so the foundation smoke test can dispatch a bare prompt.
+ */
+export async function postGenerateRoutine(
+  prompt: string,
+  ctx?: GenerateContext,
+): Promise<GenerateOutcome> {
+  return postToProxy({
+    prompt,
+    profile: ctx
+      ? {
+          gender: ctx.gender,
+          age: ctx.age,
+          unit: ctx.unit,
+          bodyweightKg: ctx.bodyweightKg,
+          heightCm: ctx.heightCm,
+        }
+      : undefined,
+    goals: ctx
+      ? { focus: ctx.focus, daysPerWeek: ctx.daysPerWeek, notes: ctx.notes }
+      : undefined,
+  });
 }
 
 interface StreamDelta {
@@ -115,6 +124,90 @@ function assembleRoutine(payload: RoutinePayload): Routine {
   };
 }
 
+/** Strip a domain `Routine` to the id-less schema shape sent to the model (§B). */
+export function stripToPayload(routine: Routine): RoutinePayload {
+  return {
+    name: routine.name,
+    ...(routine.subtitle !== undefined ? { subtitle: routine.subtitle } : {}),
+    days: routine.days.map((day) => ({
+      name: day.name,
+      exercises: day.exercises.map((exercise) => ({
+        name: exercise.name,
+        sets: exercise.sets.map((set) => ({
+          reps: set.reps,
+          restSeconds: set.restSeconds,
+          ...(set.targetWeightKg !== undefined
+            ? { targetWeightKg: set.targetWeightKg }
+            : {}),
+        })),
+      })),
+    })),
+  };
+}
+
+const normalize = (name: string): string => name.trim().toLowerCase();
+
+function assembleSets(
+  sets: RoutinePayload["days"][number]["exercises"][number]["sets"],
+) {
+  return sets.map((set) => ({
+    reps: set.reps,
+    restSeconds: set.restSeconds,
+    ...(set.targetWeightKg !== undefined
+      ? { targetWeightKg: set.targetWeightKg }
+      : {}),
+  }));
+}
+
+/**
+ * Assemble the edited AI payload back into a `Routine`, PRESERVING ids by
+ * hierarchical normalized-name match-and-consume (design.md §C). Unchanged days
+ * and exercises keep their ids so workout/calendar history stays joined; new or
+ * renamed items get fresh UUIDs. `id` + `createdAt` are taken from `previous` —
+ * the routine is edited, not recreated.
+ */
+export function assembleEditedRoutine(
+  payload: RoutinePayload,
+  previous: Routine,
+): Routine {
+  const remainingDays = [...previous.days];
+
+  const days = payload.days.map((day) => {
+    const matchIndex = remainingDays.findIndex(
+      (prev) => normalize(prev.name) === normalize(day.name),
+    );
+    const prevDay =
+      matchIndex === -1 ? null : remainingDays.splice(matchIndex, 1)[0];
+    const remainingExercises = prevDay ? [...prevDay.exercises] : [];
+
+    return {
+      id: prevDay?.id ?? crypto.randomUUID(),
+      name: day.name,
+      exercises: day.exercises.map((exercise) => {
+        const exIndex = remainingExercises.findIndex(
+          (prev) => normalize(prev.name) === normalize(exercise.name),
+        );
+        const prevExercise =
+          exIndex === -1 ? null : remainingExercises.splice(exIndex, 1)[0];
+        return {
+          id: prevExercise?.id ?? crypto.randomUUID(),
+          name: exercise.name,
+          sets: assembleSets(exercise.sets),
+        };
+      }),
+    };
+  });
+
+  return {
+    id: previous.id,
+    name: payload.name,
+    subtitle: payload.subtitle,
+    createdAt: previous.createdAt,
+    active: true,
+    days,
+  };
+}
+
 export interface StreamHandlers {
   /** Called with the accumulated reasoning each time more thinking arrives. */
   onThinking?: (thinking: string) => void;
@@ -128,6 +221,7 @@ export interface StreamHandlers {
  */
 async function consumeStream(
   response: Response,
+  assemble: (payload: RoutinePayload) => Routine,
   handlers: StreamHandlers,
 ): Promise<RoutineOutcome> {
   const body = response.body;
@@ -179,7 +273,7 @@ async function consumeStream(
 
   try {
     const payload = routineSchema.parse(JSON.parse(content));
-    return { ok: true, routine: assembleRoutine(payload) };
+    return { ok: true, routine: assemble(payload) };
   } catch {
     return { ok: false, error: { kind: "parse" } };
   }
@@ -198,5 +292,30 @@ export async function generateRoutine(
   if (!dispatched.ok) {
     return { ok: false, error: dispatched.error };
   }
-  return consumeStream(dispatched.response, handlers);
+  return consumeStream(dispatched.response, assembleRoutine, handlers);
+}
+
+/**
+ * The edit seam (design.md §B): send the current routine (stripped of ids) plus
+ * a targeted `instruction`, then assemble the response back into a `Routine`
+ * with ids preserved for unchanged content (§C). Reuses the one dispatch + one
+ * stream parser; no thinking log is wired for edits.
+ */
+export async function editRoutine(
+  current: Routine,
+  instruction: string,
+): Promise<RoutineOutcome> {
+  const dispatched = await postToProxy({
+    mode: "edit",
+    instruction,
+    routine: stripToPayload(current),
+  });
+  if (!dispatched.ok) {
+    return { ok: false, error: dispatched.error };
+  }
+  return consumeStream(
+    dispatched.response,
+    (payload) => assembleEditedRoutine(payload, current),
+    {},
+  );
 }

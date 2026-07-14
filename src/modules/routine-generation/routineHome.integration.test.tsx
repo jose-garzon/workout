@@ -4,12 +4,12 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor,
 } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/shared/db";
 import { saveActive } from "./api/routineRepo";
+import { useEditStore } from "./logic/editStore";
 import { useGenerationStore } from "./logic/generationStore";
 import type { Routine } from "./types";
 import { Composer } from "./ui/Composer";
@@ -67,6 +67,7 @@ afterEach(cleanup);
 
 beforeEach(async () => {
   useGenerationStore.getState().reset();
+  useEditStore.getState().reset();
   await db.routines.clear();
 });
 
@@ -137,31 +138,41 @@ describe("RoutineHomeScreen — routine summary", () => {
     // The routine's subtitle drives the motivational line.
     expect(screen.getByText("PPL — let's go")).toBeInTheDocument();
   });
+
+  // AC1.1/1.2 (edit-routine) — once a routine exists, editing (not the build
+  // composer) is the single post-creation path.
+  it("shows the edit button and hides the build composer once a routine exists", async () => {
+    await saveActive(routine());
+    render(<RoutineHomeScreen {...PROPS} />);
+
+    await screen.findByRole("link", { name: /Push/ });
+    expect(
+      screen.getByRole("button", { name: "Edit routine" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Describe the routine you want"),
+    ).not.toBeInTheDocument();
+  });
 });
 
-describe("RoutineHomeScreen — replace confirmation (design.md §D5)", () => {
-  it("declining a replacement keeps the current routine", async () => {
-    await saveActive(routine("Current"));
-    render(<RoutineHomeScreen {...PROPS} />);
-    // Wait for the active routine to load before staging a held result, so the
-    // auto-adopt effect (which only fires when NO routine exists) does not run.
+describe("RoutineHomeScreen — background blocked during an in-flight edit", () => {
+  it("marks the shell inert only while status is 'editing', restoring on error", async () => {
+    await saveActive(routine());
+    const { container } = render(<RoutineHomeScreen {...PROPS} />);
     await screen.findByRole("link", { name: /Push/ });
 
+    expect(container.querySelector("[inert]")).not.toBeInTheDocument();
+
     act(() => {
-      useGenerationStore.setState({ status: "ready", result: routine("New") });
+      useEditStore.setState({ status: "editing" });
     });
+    expect(container.querySelector("[inert]")).toBeInTheDocument();
 
-    expect(
-      screen.getByRole("dialog", { name: /Replace your routine/ }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Keep current" }));
-
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    // The new routine was never persisted.
-    const { getActive } = await import("./api/routineRepo");
-    expect((await getActive())?.name).toBe("Current");
+    // An error must restore interactivity (only the in-flight state blocks —
+    // the user needs to retry or dismiss).
+    act(() => {
+      useEditStore.setState({ status: "error", error: { kind: "provider" } });
+    });
+    expect(container.querySelector("[inert]")).not.toBeInTheDocument();
   });
 });
