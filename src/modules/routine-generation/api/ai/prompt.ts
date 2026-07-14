@@ -34,14 +34,91 @@ export interface PromptContext {
   notes?: string;
 }
 
-const SYSTEM_PROMPT = [
-  "You are a strength-training coach for an intermediate gym-goer with full-gym",
-  "equipment access. Design a gym routine as STRUCTURE ONLY: a weekly split of",
-  "training days, each with exercises and, per exercise, planned sets with reps",
-  "and rest seconds. Also author a single short (max ~12 words) motivational",
-  '"subtitle" for the routine. Do not add beginner form or safety guidance.',
-  "Respond ONLY with JSON matching the provided schema — no prose, no markdown.",
+/**
+ * The output contract, shared by build + edit. Weak/free models often ignore the
+ * request's `response_format: json_schema` and wrap output in prose or ```json
+ * fences, so we ALSO state the contract, spell the schema out in plain language,
+ * and show one valid example — belt and suspenders for reliable JSON. The client
+ * still Zod-validates the response; this just makes malformed payloads rarer.
+ */
+const OUTPUT_CONTRACT = [
+  "Respond with ONE JSON object and NOTHING else — no prose, no explanation, no",
+  "markdown, no ```json code fences. The very first character you output must be",
+  '"{" and the very last must be "}".',
 ].join(" ");
+
+/** Plain-language restatement of `routineSchema` (schema.ts) — belt and suspenders. */
+const SCHEMA_SHAPE = [
+  "The response is ONE JSON object matching this JSON schema:",
+  "- name: string — a short routine name.",
+  "- subtitle: string — OPTIONAL, one short (max ~12 words) motivational line.",
+  "- days: non-empty array with ONE entry per training day. Each day is an object:",
+  '    - name: string — e.g. "Push", "Pull", "Legs", "Upper".',
+  "    - exercises: non-empty array of objects, each:",
+  "        - name: string — the exercise name.",
+  "        - sets: non-empty array of objects, each:",
+  "            - reps: a whole number greater than 0.",
+  "            - restSeconds: a whole number of 0 or more (never negative).",
+  "            - targetWeightKg: OPTIONAL number greater than 0 — omit it unless a",
+  "              specific load is clearly warranted.",
+].join("\n");
+
+/** A concrete, valid example so the model has a shape to copy (schema-conformant). */
+const EXAMPLE = [
+  "Example of a well-formed response (copy the SHAPE, not the content):",
+  JSON.stringify({
+    name: "Upper / Lower",
+    subtitle: "Four focused days, real strength",
+    days: [
+      {
+        name: "Upper",
+        exercises: [
+          {
+            name: "Bench Press",
+            sets: [
+              { reps: 8, restSeconds: 120 },
+              { reps: 8, restSeconds: 120 },
+            ],
+          },
+          { name: "Barbell Row", sets: [{ reps: 10, restSeconds: 90 }] },
+        ],
+      },
+      {
+        name: "Lower",
+        exercises: [
+          { name: "Back Squat", sets: [{ reps: 5, restSeconds: 180 }] },
+        ],
+      },
+    ],
+  }),
+].join("\n");
+
+/**
+ * Handle terse or vague requests gracefully. Users routinely type things like
+ * "PPL", "get strong", or "upper/lower" — the model must infer a complete routine
+ * rather than stall or ask questions (it cannot; this is a one-shot proxy call).
+ */
+const INTERPRET = [
+  'Interpret the request generously. If it is brief or vague (e.g. "PPL", "get',
+  'strong", "upper/lower", "3 day split"), infer a complete, sensible routine',
+  "that honours the stated goal and the training-days count. Never ask the user to",
+  "clarify and never return an empty or partial routine.",
+].join(" ");
+
+const SYSTEM_PROMPT = [
+  [
+    "You are a strength-training coach for an intermediate gym-goer with full-gym",
+    "equipment access. Design a gym routine as STRUCTURE ONLY: a weekly split of",
+    "training days, each with exercises and, per exercise, planned sets with reps",
+    "and rest seconds. Also author a single short (max ~12 words) motivational",
+    '"subtitle" for the routine. Do not add beginner form or safety guidance.',
+  ].join(" "),
+  INTERPRET,
+  "Return EXACTLY as many day entries as the requested training-days count.",
+  OUTPUT_CONTRACT,
+  SCHEMA_SHAPE,
+  EXAMPLE,
+].join("\n\n");
 
 /** Weight in the user's own units, for the context line (kg stored canonically). */
 function formatBodyweight(ctx: PromptContext): string | null {
@@ -91,13 +168,17 @@ export function buildRoutinePrompt(
 }
 
 const EDIT_SYSTEM_PROMPT = [
-  "You are editing an EXISTING gym routine. Apply ONLY the requested change and",
-  "return the FULL updated routine in the same JSON schema. Everything the",
-  "instruction does not mention must stay exactly the same — same day names,",
-  "same exercise names, same sets, reps, and rest. Do not rename or reorder",
-  "anything you were not asked to change.",
-  "Respond ONLY with JSON matching the provided schema — no prose, no markdown.",
-].join(" ");
+  [
+    "You are editing an EXISTING gym routine. Apply ONLY the requested change and",
+    "return the FULL updated routine. Everything the instruction does not mention",
+    "must stay EXACTLY the same — same day names, same exercise names, same sets,",
+    "reps, and rest. Do not rename, reorder, add, or drop anything you were not",
+    "asked to change.",
+  ].join(" "),
+  OUTPUT_CONTRACT,
+  SCHEMA_SHAPE,
+  EXAMPLE,
+].join("\n\n");
 
 /**
  * Build the chat messages for an EDIT request (design.md §B). `routine` is the
