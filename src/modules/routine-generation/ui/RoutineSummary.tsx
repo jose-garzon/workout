@@ -104,7 +104,7 @@ export function RoutineSummary({
           onClick={onEdit}
         >
           <EditIcon />
-          Edit routine
+          Edit
         </Button>
       </div>
       <ul className="flex flex-col gap-[var(--space-3)]">

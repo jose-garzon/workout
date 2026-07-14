@@ -146,9 +146,7 @@ describe("RoutineHomeScreen — routine summary", () => {
     render(<RoutineHomeScreen {...PROPS} />);
 
     await screen.findByRole("link", { name: /Push/ });
-    expect(
-      screen.getByRole("button", { name: "Edit routine" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Describe the routine you want"),
     ).not.toBeInTheDocument();
