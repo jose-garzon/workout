@@ -59,7 +59,7 @@ function sse(routine: object) {
   return {
     status: 200,
     headers: { "content-type": "text/event-stream" },
-    body: event({ content: JSON.stringify(routine) }) + "data: [DONE]\n\n",
+    body: `${event({ content: JSON.stringify(routine) })} data: [DONE]\n\n`,
   };
 }
 
