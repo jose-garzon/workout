@@ -8,7 +8,7 @@ export interface ChoiceOption {
   label: string;
 }
 
-export type ChoiceGroupLayout = "segmented" | "stack";
+export type ChoiceGroupLayout = "segmented" | "stack" | "grid";
 
 export interface ChoiceGroupProps {
   label: string;
@@ -19,7 +19,10 @@ export interface ChoiceGroupProps {
   error?: string | null;
   required?: boolean;
   /** "segmented" — equal-width horizontal toggle (e.g. a 2-option field).
-   *  "stack" — vertical list of full-width rows (e.g. a 4-option field). */
+   *  "stack" — vertical list of full-width rows (e.g. a 4-option field).
+   *  "grid" — two-column grid of bordered cells (e.g. a 7-option field too
+   *  long for "segmented" and too tall for "stack" in a compact space —
+   *  edit-profile design.md D3's `daysPerWeek` row). */
   layout?: ChoiceGroupLayout;
 }
 
@@ -62,8 +65,10 @@ export function ChoiceGroup({
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
   ) => {
-    const forwardKey = layout === "segmented" ? "ArrowRight" : "ArrowDown";
-    const backwardKey = layout === "segmented" ? "ArrowLeft" : "ArrowUp";
+    const forwardKey =
+      layout === "segmented" || layout === "grid" ? "ArrowRight" : "ArrowDown";
+    const backwardKey =
+      layout === "segmented" || layout === "grid" ? "ArrowLeft" : "ArrowUp";
     if (event.key === forwardKey) {
       event.preventDefault();
       selectAt((index + 1) % options.length, true);
@@ -98,7 +103,9 @@ export function ChoiceGroup({
         className={
           layout === "segmented"
             ? `flex h-[var(--control-height-md)] border ${error ? "border-danger" : "border-border"}`
-            : "flex flex-col gap-[var(--space-3)]"
+            : layout === "grid"
+              ? "grid grid-cols-2 gap-[var(--space-3)]"
+              : "flex flex-col gap-[var(--space-3)]"
         }
       >
         {options.map((option, index) => {
@@ -130,12 +137,19 @@ export function ChoiceGroup({
                     ]
                       .filter(Boolean)
                       .join(" ")
-                  : [
-                      "text-body-strong anim-press flex h-[var(--control-height-md)] items-center gap-[var(--space-3)] border px-[var(--control-padding-inline-md)] text-left",
-                      checked
-                        ? "border-accent-text bg-accent-wash text-accent-text"
-                        : `${error ? "border-danger" : "border-border"} bg-transparent text-text hover:bg-surface`,
-                    ].join(" ")
+                  : layout === "grid"
+                    ? [
+                        "text-body-strong anim-press flex h-[var(--control-height-md)] items-center justify-center border",
+                        checked
+                          ? "border-accent-text bg-accent-wash text-accent-text"
+                          : `${error ? "border-danger" : "border-border"} bg-transparent text-text hover:bg-surface`,
+                      ].join(" ")
+                    : [
+                        "text-body-strong anim-press flex h-[var(--control-height-md)] items-center gap-[var(--space-3)] border px-[var(--control-padding-inline-md)] text-left",
+                        checked
+                          ? "border-accent-text bg-accent-wash text-accent-text"
+                          : `${error ? "border-danger" : "border-border"} bg-transparent text-text hover:bg-surface`,
+                      ].join(" ")
               }
             >
               {layout === "stack" && (

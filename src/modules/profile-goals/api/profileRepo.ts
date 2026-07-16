@@ -69,11 +69,11 @@ export async function getGoals(): Promise<Goals | null> {
 }
 
 /**
- * Persist profile + goals atomically. Both `put`s run in a single rw
- * transaction, so a failure on either rolls back both — row-presence of
- * `profile` reliably implies a complete onboarding (design.md §2.2).
+ * The shared write body: both `put`s in ONE rw transaction, so a failure on
+ * either rolls back both. `put` upserts the `"me"` singleton, so onboarding
+ * (first write) and edits (in-place update) share this exact path.
  */
-export async function saveOnboarding(
+async function putProfileAndGoals(
   profile: Profile,
   goals: Goals,
 ): Promise<void> {
@@ -81,4 +81,27 @@ export async function saveOnboarding(
     await db.profile.put(toProfileRow(profile));
     await db.goals.put(toGoalsRow(goals));
   });
+}
+
+/**
+ * Persist profile + goals atomically at onboarding — row-presence of `profile`
+ * reliably implies a complete onboarding (design.md §2.2).
+ */
+export async function saveOnboarding(
+  profile: Profile,
+  goals: Goals,
+): Promise<void> {
+  return putProfileAndGoals(profile, goals);
+}
+
+/**
+ * Persist edited profile + goals (edit-profile D2). Distinct name from
+ * `saveOnboarding` to document update-intent at the call site and let the two
+ * paths diverge later; today both upsert the same `"me"` singleton in place.
+ */
+export async function saveProfileEdits(
+  profile: Profile,
+  goals: Goals,
+): Promise<void> {
+  return putProfileAndGoals(profile, goals);
 }

@@ -1,7 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useState } from "react";
 import { CalendarWeekStrip } from "@/modules/calendar/ui/CalendarWeekStrip";
+import type { Goals, Profile } from "@/modules/profile-goals";
+import { ProfileDrawer } from "@/modules/profile-goals/ui/ProfileDrawer";
 import { Splash } from "@/modules/profile-goals/ui/Splash";
 import { RoutineHomeScreen } from "@/modules/routine-generation/ui/RoutineHomeScreen";
 
@@ -24,23 +27,45 @@ const FirstRunGate = dynamic(
   { ssr: false, loading: () => <Splash /> },
 );
 
+/**
+ * The `home` slot's own client wrapper (edit-profile design.md D6) — owns
+ * the profile editor's open/closed state (UI-local, not part of any seam)
+ * and mounts `ProfileDrawer` as a SIBLING of `RoutineHomeScreen`, not a
+ * child, the same reasoning `RoutineEditor` sits beside `AppShell`: the
+ * drawer must stay reachable even while the shell underneath is dimmed/inert.
+ */
+function Home({ profile, goals }: { profile: Profile; goals: Goals | null }) {
+  const [editOpen, setEditOpen] = useState(false);
+
+  return (
+    <>
+      <RoutineHomeScreen
+        displayName={profile.displayName}
+        focus={goals?.focus ?? "general"}
+        daysPerWeek={goals?.daysPerWeek ?? 3}
+        gender={profile.gender}
+        age={profile.age}
+        bodyweightKg={profile.bodyweightKg}
+        heightCm={profile.heightCm}
+        unit={profile.unit}
+        notes={goals?.notes}
+        weekStrip={<CalendarWeekStrip />}
+        onEditProfile={() => setEditOpen(true)}
+      />
+      <ProfileDrawer
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        profile={profile}
+        goals={goals}
+      />
+    </>
+  );
+}
+
 export default function HomePage() {
   return (
     <FirstRunGate
-      home={(profile, goals) => (
-        <RoutineHomeScreen
-          displayName={profile.displayName}
-          focus={goals?.focus ?? "general"}
-          daysPerWeek={goals?.daysPerWeek ?? 3}
-          gender={profile.gender}
-          age={profile.age}
-          bodyweightKg={profile.bodyweightKg}
-          heightCm={profile.heightCm}
-          unit={profile.unit}
-          notes={goals?.notes}
-          weekStrip={<CalendarWeekStrip />}
-        />
-      )}
+      home={(profile, goals) => <Home profile={profile} goals={goals} />}
     />
   );
 }

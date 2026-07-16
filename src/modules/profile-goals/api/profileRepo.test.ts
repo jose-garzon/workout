@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/shared/db";
 import type { Goals, Profile } from "../types";
-import { getGoals, getProfile, saveOnboarding } from "./profileRepo";
+import {
+  getGoals,
+  getProfile,
+  saveOnboarding,
+  saveProfileEdits,
+} from "./profileRepo";
 
 /**
  * Real Dexie against fake-indexeddb (design.md §6). No mocking of the DB itself;
@@ -78,5 +83,35 @@ describe("saveOnboarding", () => {
 
     expect(await getProfile()).toEqual(profile);
     expect(await getGoals()).toEqual(goals);
+  });
+});
+
+describe("saveProfileEdits", () => {
+  it("upserts the 'me' singleton in place — no duplicate rows", async () => {
+    await saveOnboarding(profile, goals);
+
+    const edited: Profile = {
+      ...profile,
+      displayName: "Sam",
+      bodyweightKg: 85,
+    };
+    const editedGoals: Goals = { ...goals, daysPerWeek: 5 };
+    await saveProfileEdits(edited, editedGoals);
+
+    expect(await getProfile()).toEqual(edited);
+    expect(await getGoals()).toEqual(editedGoals);
+    expect(await db.profile.count()).toBe(1);
+    expect(await db.goals.count()).toBe(1);
+  });
+
+  it("writes both rows in one transaction — a forced failure rolls back", async () => {
+    await saveOnboarding(profile, goals);
+    vi.spyOn(db.goals, "put").mockRejectedValueOnce(new Error("boom"));
+
+    const edited: Profile = { ...profile, displayName: "Sam" };
+    await expect(saveProfileEdits(edited, goals)).rejects.toThrow();
+
+    // The profile edit rolled back with the failed goals put.
+    expect((await getProfile())?.displayName).toBe("Alex");
   });
 });

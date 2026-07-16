@@ -361,6 +361,16 @@ export function inToCm(inch: number): number {
   return round1(inch * 2.54);
 }
 
+/** Kilograms → pounds, rounded to a whole lb (the imperial weight step is 1). */
+export function kgToLb(kg: number): number {
+  return Math.round(kg / 0.45359237);
+}
+
+/** Centimetres → inches, rounded to a whole in (the height step is 1). */
+export function cmToIn(cm: number): number {
+  return Math.round(cm / 2.54);
+}
+
 /**
  * Convert a (validated) draft to canonical domain records for persistence.
  * Bodyweight/height are stored as SI (kg/cm); `unit` is kept as a display
@@ -394,4 +404,102 @@ export function draftToRecords(draft: OnboardingDraft): {
   };
 
   return { profile, goals };
+}
+
+// --- Inverse: seed an editable draft from saved records (edit-profile D4) -----
+
+/** All 8 field names in onboarding order — the edit drawer renders every one. */
+export const ALL_FIELD_NAMES: readonly FieldName[] = [
+  "displayName",
+  "gender",
+  "age",
+  "unit",
+  "bodyweight",
+  "height",
+  "focus",
+  "daysPerWeek",
+];
+
+/** '' for undefined/blank; otherwise the number as a string. */
+function numToDraft(value: number | undefined): string {
+  return value === undefined ? "" : String(value);
+}
+
+/**
+ * Inverse of `draftToRecords`: seed a display-unit draft from saved records so
+ * the editor shows the user's own values. Metric weight/height pass through
+ * (`round1`); imperial rounds SI back to whole lb/in. Undefined `displayName`,
+ * `heightCm`, and (pre-2026-07-10) `gender`/`age` seed as '' — the drawer shows
+ * them empty and Save blocks until filled (the editor is the backfill path).
+ */
+export function recordsToDraft(
+  profile: Profile,
+  goals: Goals | null,
+): OnboardingDraft {
+  const imperial = profile.unit === "imperial";
+
+  const bodyweight =
+    profile.bodyweightKg === undefined
+      ? ""
+      : String(
+          imperial
+            ? kgToLb(profile.bodyweightKg)
+            : round1(profile.bodyweightKg),
+        );
+
+  const height =
+    profile.heightCm === undefined
+      ? ""
+      : String(imperial ? cmToIn(profile.heightCm) : round1(profile.heightCm));
+
+  return {
+    displayName: profile.displayName ?? "",
+    gender: (profile.gender as string | undefined) ?? "",
+    age: numToDraft(profile.age),
+    unit: profile.unit,
+    bodyweight,
+    height,
+    focus: (goals?.focus as string | undefined) ?? "",
+    daysPerWeek: numToDraft(goals?.daysPerWeek),
+  };
+}
+
+/** Validate all 8 fields at once (the edit drawer has no steps). */
+export function validateAll(draft: OnboardingDraft): FieldErrors {
+  const errors = emptyErrors();
+  for (const name of ALL_FIELD_NAMES) {
+    errors[name] = validateField(name, draft);
+  }
+  return errors;
+}
+
+/** Convert one display string; blank stays blank, non-numeric stays as-is. */
+function convertValue(raw: string, convert: (n: number) => number): string {
+  if (raw.trim() === "") return raw;
+  const n = Number(raw);
+  return Number.isFinite(n) ? String(convert(n)) : raw;
+}
+
+/**
+ * Re-express a draft's bodyweight/height in `nextUnit` (edit-profile revision).
+ * Toggling the unit radio must convert the shown numbers, not just relabel them,
+ * or Save would reinterpret the same digits (80 kg → "80 lb"). Direction is read
+ * from the draft's CURRENT `unit`, so pass the pre-toggle draft. Only bodyweight
+ * and height change; every other field passes through. Imperial shows whole
+ * lb/in; metric shows 0.1 kg/cm — matching `recordsToDraft`.
+ */
+export function convertDraftUnits(
+  draft: OnboardingDraft,
+  nextUnit: string,
+): OnboardingDraft {
+  if (nextUnit === draft.unit) return { ...draft, unit: nextUnit };
+  const toImperial = nextUnit === "imperial";
+  const weight = toImperial ? kgToLb : lbToKg;
+  const length = toImperial ? cmToIn : inToCm;
+  return {
+    ...draft,
+    unit: nextUnit,
+    bodyweight: convertValue(draft.bodyweight, weight),
+    height: convertValue(draft.height, length),
+  };
 }

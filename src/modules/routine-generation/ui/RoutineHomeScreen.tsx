@@ -48,6 +48,41 @@ export interface RoutineHomeScreenProps {
    * and just renders whatever node it's handed (design.md §1).
    */
   weekStrip?: ReactNode;
+  /**
+   * Opens the profile editor (edit-profile design.md D6) — a plain optional
+   * callback slot, same pattern as `weekStrip`: the drawer itself is a
+   * sibling mounted at the app layer, not a child here, so this screen never
+   * imports another feature's UI. Renders an edit affordance in the identity
+   * block only when supplied.
+   */
+  onEditProfile?: () => void;
+}
+
+/**
+ * A plain stroke pencil (design-system.md §2 "Iconography"), local to this
+ * file — `RoutineSummary`'s identical icon isn't exported, and its "Edit"
+ * button already occupies that accessible name (the active routine's edit
+ * affordance), so this one is icon-only with its own `aria-label`
+ * ("Edit profile") to keep the two unambiguous.
+ */
+function EditProfileIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      width="18"
+      height="18"
+      fill="none"
+    >
+      <path
+        d="M12.5 3.5l4 4L6 18H2v-4L12.5 3.5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="butt"
+        strokeLinejoin="miter"
+      />
+    </svg>
+  );
 }
 
 /** Human, specific copy per AI failure — never a raw technical string. */
@@ -82,6 +117,7 @@ export function RoutineHomeScreen({
   unit,
   notes,
   weekStrip,
+  onEditProfile,
 }: RoutineHomeScreenProps) {
   const { routine: active } = useActiveRoutine();
   const { status, progressMessage, error, generate, confirmSave, reset } =
@@ -160,7 +196,19 @@ export function RoutineHomeScreen({
           + theme toggle), so this `<h2>` is the screen's one VISIBLE
           heading. */}
         <div className="flex flex-col gap-[var(--space-3)]">
-          <h2 className="text-title-1">Hey, {name}</h2>
+          <div className="flex items-center justify-between gap-[var(--space-4)]">
+            <h2 className="text-title-1">Hey, {name}</h2>
+            {onEditProfile && (
+              <button
+                type="button"
+                onClick={onEditProfile}
+                aria-label="Edit profile"
+                className="anim-press flex h-[var(--tap-target-min)] w-[var(--tap-target-min)] shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text"
+              >
+                <EditProfileIcon />
+              </button>
+            )}
+          </div>
           <span className="text-micro inline-flex h-[var(--space-7)] w-fit items-center bg-accent-wash px-[var(--space-4)] text-accent-text">
             {goalLabel(focus)}
           </span>

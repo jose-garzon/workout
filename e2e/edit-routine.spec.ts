@@ -139,7 +139,7 @@ async function seedRoutine(page: Page) {
 }
 
 async function openEditor(page: Page) {
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByLabel("Improve your routine")).toBeVisible();
 }
 
@@ -154,7 +154,9 @@ test.describe("edit-routine", () => {
     await expect(
       page.getByLabel("Describe the routine you want"),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Edit", exact: true }),
+    ).toHaveCount(0);
 
     await page
       .getByLabel("Describe the routine you want")
@@ -163,7 +165,9 @@ test.describe("edit-routine", () => {
     await expect(page.getByRole("link", { name: /Push/ })).toBeVisible();
 
     // AC1.1: edit button next to the routine title.
-    await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit", exact: true }),
+    ).toBeVisible();
     // AC1.2: the standing build composer is gone.
     await expect(page.getByLabel("Describe the routine you want")).toHaveCount(
       0,
@@ -207,7 +211,9 @@ test.describe("edit-routine", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByLabel("Improve your routine")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Push/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit", exact: true }),
+    ).toBeVisible();
     expect(edited).toBe(false);
   });
 
@@ -263,7 +269,9 @@ test.describe("edit-routine", () => {
     // view + edit button.
     await expect(page.getByRole("link", { name: /Legs/ })).toBeVisible();
     await expect(page.getByLabel("Improve your routine")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit", exact: true }),
+    ).toBeVisible();
   });
 
   test("a backend error keeps the editor open and the routine unchanged (AC4.1)", async ({
