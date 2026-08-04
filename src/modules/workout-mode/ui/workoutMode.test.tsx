@@ -124,6 +124,8 @@ function fakeApi(
     weight: null,
     setWeight: vi.fn(),
     previousWeight: null,
+    reps: null,
+    setReps: vi.fn(),
     canStartSet: true,
     timer: WORK_TIMER,
     completedSets: [],
@@ -326,6 +328,45 @@ describe("ExerciseView — weight field + previous weight", () => {
       />,
     );
     expect(screen.getByText("lb")).toBeInTheDocument();
+  });
+});
+
+describe("ExerciseView — reps field (progressive-overload default)", () => {
+  it("renders the seam-provided default reps and writes edits through setReps", () => {
+    const setReps = vi.fn();
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: READY_TIMER,
+          reps: 10,
+          setReps,
+        })}
+      />,
+    );
+
+    const field = screen.getByLabelText("Reps", {
+      exact: false,
+    }) as HTMLInputElement;
+    expect(field.value).toBe("10");
+
+    fireEvent.change(field, { target: { value: "12" } });
+    expect(setReps).toHaveBeenCalledWith(12);
+  });
+
+  it("locks the reps field while the set is running, same as weight", () => {
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: WORK_TIMER,
+          reps: 8,
+        })}
+      />,
+    );
+    expect(screen.getByLabelText("Reps", { exact: false })).toBeDisabled();
   });
 });
 

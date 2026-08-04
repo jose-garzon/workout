@@ -11,11 +11,11 @@
 
 /**
  * One completed set — captured on the work→rest (or work→complete) tap (§D3).
- * `reps`/`volumeKg` are PLANNED figures (the plan's reps for this set index),
- * never counted output.
+ * `reps` is the ACTUAL reps the user entered for this set (progressive-overload
+ * tracking); falls back to the plan's reps for this set index when unentered.
  */
 export interface SeriesLog {
-  /** The plan's reps for this set index (`sets[i].reps`) — not counted. */
+  /** Actual reps performed, or the plan's reps for this set index as fallback. */
   reps: number;
   /** The weight used for THIS set, canonical kg (0 if unset). */
   weightKg: number;
@@ -62,6 +62,8 @@ export interface WorkoutSession {
   exerciseLogs: ExerciseLog[];
   currentExerciseIndex: number;
   enteredWeightKg: number | null;
+  /** Reps entered for the CURRENT set; reset to null on every new armed set so the seam can re-default it per set index (previous-session reps, or the plan's). */
+  enteredReps: number | null;
   /** Sets already completed within THIS exercise, in order (§D1 revised). */
   currentSeries: SeriesLog[];
   /** Rest banked from completed rests this exercise, seconds. */

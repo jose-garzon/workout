@@ -6,6 +6,7 @@ import { useActiveRoutine } from "@/modules/routine-generation";
 import {
   clearInProgress,
   getInProgress,
+  getPreviousReps,
   getPreviousWeight,
   saveCompleted,
   saveInProgress,
@@ -67,6 +68,9 @@ export interface WorkoutSessionApi {
   weight: number | null;
   setWeight: (value: number | null) => void;
   previousWeight: number | null;
+  /** Reps for the CURRENT set — auto-defaulted to the previous session's reps at this set index (or the plan's), editable for progressive overload. */
+  reps: number | null;
+  setReps: (value: number | null) => void;
   /** True when the armed set can be started — `ready` phase + a weight entered (§D12). */
   canStartSet: boolean;
   timer: TimerView;
@@ -105,6 +109,13 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
   );
 
   const [previousWeightKg, setPreviousWeightKg] = useState<number | null>(null);
+  /* Per-set reps `[set0, set1, ...]` from the last completed session that logged
+     the current exercise, keyed to the exercise id it was fetched for — see the
+     auto-fill effect below for why the id needs to travel with the data. */
+  const [previousReps, setPreviousReps] = useState<{
+    exerciseId: string;
+    reps: number[] | null;
+  } | null>(null);
 
   /* --- Mount / resume (§D4/§D5). Re-runs if the routine identity or the day
      changes; guarded so the routine live-query re-emitting is a no-op. --- */
@@ -178,6 +189,59 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
       cancelled = true;
     };
   }, [currentExerciseId]);
+
+  useEffect(() => {
+    if (!currentExerciseId) {
+      setPreviousReps(null);
+      return;
+    }
+    let cancelled = false;
+    getPreviousReps(currentExerciseId).then((reps) => {
+      if (!cancelled) setPreviousReps({ exerciseId: currentExerciseId, reps });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentExerciseId]);
+
+  /* --- Reps auto-default (mirrors §D6's previous-weight lookup, but COMMITS
+     the value into the session instead of just showing a hint): every time a
+     NEW set is armed (`enteredReps` reset to null by the `tap`/`advanceExercise`
+     reducers), fill it ONCE with that set index's reps from the last session
+     that logged this exercise, or the plan's reps for that index. Waits for
+     `previousReps` to resolve for THIS exercise first, so it never fills with
+     the plan fallback and then jarringly overwrites it once the fetch lands.
+     `filledSetRef` remembers which (exercise, set index) it already filled —
+     `enteredReps === null` alone can't be the trigger, since the user
+     clearing the field to retype ALSO makes it null; without this ref the
+     effect would re-stomp their edit back to the default on every keystroke
+     that passed through an empty field. */
+  const filledSetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (status !== "in-progress" || !day || !session || !currentExerciseId) {
+      return;
+    }
+    if (session.phase !== "ready") return;
+    if (!previousReps || previousReps.exerciseId !== currentExerciseId) return;
+
+    const index = session.currentSeries.length;
+    const key = `${currentExerciseId}:${index}`;
+    if (filledSetRef.current === key) return;
+    filledSetRef.current = key;
+    if (session.enteredReps !== null) return;
+
+    const exercise = day.exercises[session.currentExerciseIndex];
+    const defaultReps =
+      previousReps.reps?.[index] ?? exercise?.sets[index]?.reps ?? null;
+    if (defaultReps === null) return;
+
+    const store = useWorkoutStore.getState();
+    const fresh = store.session;
+    if (fresh?.phase !== "ready" || fresh.enteredReps !== null) return;
+    const next = { ...fresh, enteredReps: defaultReps };
+    store.setSession(next);
+    if (store.status === "in-progress") void saveInProgress(next);
+  }, [status, day, session, currentExerciseId, previousReps]);
 
   /* --- Display re-render pump; idle unless a live phase is showing. --- */
   const tickPhase =
@@ -257,6 +321,15 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     [unit],
   );
 
+  const setReps = useCallback((value: number | null) => {
+    const store = useWorkoutStore.getState();
+    const s = store.session;
+    if (!s) return;
+    const next = { ...s, enteredReps: value };
+    store.setSession(next);
+    if (store.status === "in-progress") void saveInProgress(next);
+  }, []);
+
   const setDefaultRestSeconds = useCallback((seconds: number) => {
     const store = useWorkoutStore.getState();
     const s = store.session;
@@ -295,6 +368,7 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
       : kgToDisplay(session.enteredWeightKg, unit);
   const previousWeight =
     previousWeightKg == null ? null : kgToDisplay(previousWeightKg, unit);
+  const reps = session?.enteredReps ?? null;
   const canStartSet =
     status === "in-progress" && timer.phase === "ready" && weight !== null;
   /* The current exercise's finished sets in display units; resets automatically
@@ -316,6 +390,8 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     weight,
     setWeight,
     previousWeight,
+    reps,
+    setReps,
     canStartSet,
     timer,
     completedSets,

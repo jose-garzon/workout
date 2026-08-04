@@ -159,6 +159,7 @@ export function initialSession(params: {
     exerciseLogs: [],
     currentExerciseIndex: 0,
     enteredWeightKg: null,
+    enteredReps: null,
     currentSeries: [],
     accumRestSeconds: 0,
     phase: "ready",
@@ -195,9 +196,10 @@ export function tap(
 
   if (session.phase === "work") {
     // The set that just finished is at index `currentSeries.length` (§D3 table):
-    // bank its own weight + the plan's reps for that index into a `SeriesLog`.
+    // bank its own weight + its entered reps (falling back to the plan's reps
+    // for that index when unentered) into a `SeriesLog`.
     const i = session.currentSeries.length;
-    const reps = exercise?.sets[i]?.reps ?? 0;
+    const reps = session.enteredReps ?? exercise?.sets[i]?.reps ?? 0;
     const weightKg = session.enteredWeightKg ?? 0;
     const setLog: SeriesLog = {
       reps,
@@ -235,11 +237,14 @@ export function tap(
   if (session.phase === "rest") {
     // rest OR the derived overtime — both are the same stored `rest` row. The
     // next set is ARMED, not auto-running (§D12); its weight carries over from
-    // this set (kept on the session) and stays editable.
+    // this set (kept on the session) and stays editable. Reps reset to null so
+    // the seam re-defaults them for the NEW set index (previous-session reps
+    // for that index, or the plan's) rather than carrying the last set's value.
     return {
       ...session,
       accumRestSeconds: session.accumRestSeconds + banked,
       phase: "ready",
+      enteredReps: null,
       anchorTs: now,
     };
   }
@@ -257,6 +262,7 @@ export function advanceExercise(
     ...session,
     currentExerciseIndex: session.currentExerciseIndex + 1,
     enteredWeightKg: null,
+    enteredReps: null,
     currentSeries: [],
     accumRestSeconds: 0,
     phase: "ready",

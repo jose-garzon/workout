@@ -54,6 +54,7 @@ function persistedSession(overrides: Partial<WorkoutSession>): WorkoutSession {
     exerciseLogs: [],
     currentExerciseIndex: 0,
     enteredWeightKg: null,
+    enteredReps: null,
     currentSeries: [],
     accumRestSeconds: 0,
     phase: "work",
@@ -183,6 +184,86 @@ describe("finish sequence (§D5)", () => {
     // The finished record is durable; the resume row is gone.
     expect(await db.completedSessions.count()).toBe(1);
     expect(await db.sessions.get(SESSION_ID)).toBeUndefined();
+  });
+});
+
+describe("reps default (progressive overload)", () => {
+  it("prefills the armed set's reps from the previous session's reps at that set index", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    // A prior completed session on e1 finished at 10 reps — one more than plan's 8.
+    await db.completedSessions.put({
+      id: "prev",
+      routineId: ROUTINE_ID,
+      dayId: "d1",
+      completedAt: 0,
+      exerciseLogs: [
+        {
+          exerciseId: "e1",
+          name: "Bench",
+          series: [{ reps: 10, weightKg: 60, workSeconds: 30, volumeKg: 600 }],
+          restSeconds: 0,
+        },
+      ],
+    });
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+
+    await waitFor(() => expect(result.current.reps).toBe(10));
+
+    act(() => result.current.setReps(12));
+    expect(result.current.reps).toBe(12);
+    const row = await db.sessions.get(SESSION_ID);
+    expect(row?.enteredReps).toBe(12);
+  });
+
+  it("does not re-stomp a cleared/retyped reps field back to the default (regression)", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+    // Auto-filled from the plan (no previous session): 8.
+    await waitFor(() => expect(result.current.reps).toBe(8));
+
+    // User clears the field to retype it — must STAY null, not snap back to 8.
+    act(() => result.current.setReps(null));
+    expect(result.current.reps).toBeNull();
+    // Give any stray effect a chance to (wrongly) re-fire before asserting.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.reps).toBeNull();
+
+    // Typing a fresh value sticks too.
+    act(() => result.current.setReps(1));
+    expect(result.current.reps).toBe(1);
+    act(() => result.current.setReps(12));
+    expect(result.current.reps).toBe(12);
+  });
+
+  it("falls back to the plan's reps when there is no previous session", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+
+    // e1's plan reps is 8 (seedRoutine).
+    await waitFor(() => expect(result.current.reps).toBe(8));
   });
 });
 

@@ -5,6 +5,7 @@ import {
   clearInProgress,
   getCompletedForRoutine,
   getInProgress,
+  getPreviousReps,
   getPreviousWeight,
   saveCompleted,
   saveInProgress,
@@ -44,6 +45,7 @@ function inProgress(): WorkoutSession {
     exerciseLogs: [],
     currentExerciseIndex: 0,
     enteredWeightKg: 60,
+    enteredReps: null,
     currentSeries: [{ reps: 8, weightKg: 60, workSeconds: 45, volumeKg: 480 }],
     accumRestSeconds: 0,
     phase: "rest",
@@ -149,5 +151,33 @@ describe("getPreviousWeight (§D6)", () => {
     await saveCompleted(completed("c2", 2000, [log("e1", 0)]));
     // Newest matching log is all-zero → keep scanning → the earlier real weight.
     expect(await getPreviousWeight("e1")).toBe(60);
+  });
+});
+
+describe("getPreviousReps (progressive-overload reps default)", () => {
+  /** A log whose sets carry explicit varying reps, for the per-index scan. */
+  function repsLog(exerciseId: string, ...reps: number[]): ExerciseLog {
+    return {
+      exerciseId,
+      name: exerciseId,
+      series: reps.map((r) => ({
+        reps: r,
+        weightKg: 60,
+        workSeconds: 30,
+        volumeKg: 60 * r,
+      })),
+      restSeconds: 90,
+    };
+  }
+
+  it("returns the per-set reps array from the most recent matching session", async () => {
+    await saveCompleted(completed("c1", 1000, [repsLog("e1", 8, 8, 8)]));
+    await saveCompleted(completed("c2", 2000, [repsLog("e1", 10, 9, 8)]));
+    expect(await getPreviousReps("e1")).toEqual([10, 9, 8]);
+  });
+
+  it("returns null when no completed session contains the exercise", async () => {
+    await saveCompleted(completed("c1", 1000, [repsLog("e1", 8)]));
+    expect(await getPreviousReps("nope")).toBeNull();
   });
 });

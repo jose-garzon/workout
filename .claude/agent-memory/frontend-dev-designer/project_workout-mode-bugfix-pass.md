@@ -162,3 +162,68 @@ overreaching into a protected/shared component (Stopwatch, AppShell) without
 being asked. Confirmed the fix DOES fit with zero scroll on a taller
 viewport (390×844); the residual only shows on the very smallest phones
 (SE/8-class, 667px tall) with a 2+-series exercise.
+
+**Round 4 (2026-08-04): a Reps field landed beside the existing Weight
+field (`flex gap-2`, both `flex-1`) and caused real horizontal page
+overflow — root cause was a classic missing `min-w-0`, not the fields'
+content size itself.** Neither of the two `<div className="flex-1">`
+wrappers in `ExerciseView` had `min-w-0`, so — even though `Input`'s own
+`<input>` already carries `min-w-0 flex-1` internally — the OUTER wrapper's
+default `min-width:auto` floor won, and the browser sized each field to its
+unconstrained intrinsic width (~629px each, measured) instead of letting
+them share the 375px row. **One field alone had never exposed this because
+it was the row's only occupant; two siblings in the same unconstrained-min
+flex row is what surfaced it** — worth checking for on ANY future
+side-by-side pairing of two `flex-1` children, not just this screen: add
+`min-w-0` to a flex child whenever it wraps something with its own
+inherent/unbounded content width (long text, a native `<input>`), the
+moment it stops being the row's sole occupant. Measured via a throwaway
+Playwright script (`document.documentElement.scrollWidth` vs
+`clientWidth`, plus `getBoundingClientRect()` on both `<input>`s) against
+the live `next dev`/`next build+start` server at 375×667 and 360×640 —
+confirmed 0px overflow after the fix in both.
+
+Fixing the page-level overflow alone was not enough — it just made both
+`lg`-size (`text-display`, 48px) fields fit the row by shrinking, which
+clipped the weight value's digits (`"102.5"` rendered as `")2.5"` while
+typing, or truncated to `"102."` after blur, since native text inputs
+scroll to keep the caret in view but don't guarantee showing the start of
+the value once you leave it). Three additional targeted fixes, in order of
+where the reclaimed width came from:
+1. **`Input.tsx` had a genuine double-padding bug whenever `suffix` was
+   set**: the `<input>` itself always got `control-padding-inline-md`
+   (24px) on BOTH sides regardless of whether a suffix chip followed it,
+   and the suffix span then added its OWN 24px right padding on top —
+   three padding zones (24 + 24 + 24) eating the box before any digit
+   glyph. Fixed to `pl-` unconditionally but `pr-` conditional: `space-2`
+   (8px, just enough to keep value and suffix chip from touching) when a
+   suffix exists, full `control-padding-inline-md` only when it doesn't —
+   the suffix's own padding now owns the box's real right edge. This is a
+   primitive-level fix (benefits every current/future suffixed `Input`,
+   not an ExerciseView-local hack) and doesn't conflict with
+   design-system.md's "Inputs — control-padding-inline-md" line, which is
+   about the control's outer edge, not a doubled internal seam.
+2. **Row gap bumped `space-2` (8px) → `space-4` (16px)`** — the two fields
+   are "two adjacent standalone tap targets" the moment they sit side by
+   side, which is exactly `control-gap-min`'s (design-system.md §2, 16px)
+   documented case; 8px was a real, easy-to-miss design-system violation
+   introduced by the new layout, independent of the overflow bug.
+3. **Split `flex-1`/`flex-1` → `flex-[2]`/`flex-[3]`** (reps/weight) instead
+   of an equal 50/50 — reps realistically stays 1–2 digits, weight
+   regularly needs 3 digits + a decimal (`"102.5"`) AND still carries the
+   suffix chip, so it needs the bigger share. Verified empirically (not by
+   feel) with several value pairs including a deliberately unrealistic
+   edge case (`"999.5"` — no page overflow, ~2px of harmless input-level
+   clipping only on that one extreme) — realistic values (`"225"`,
+   `"102.5"`, `"60"`) render with zero clipping at both 375px and 360px.
+
+An e2e test in this same spec file (`guide a full session…`, the
+work→rest→overtime step) failed both against `next dev` and against a
+clean `next build && next start`, in a way clearly unrelated to this fix
+(stuck at "Work 0:07 elapsed" — the work→rest transition click didn't
+register — a timer/session-logic timing issue, not CSS/layout). Confirmed
+it's pre-existing by re-running unchanged; flagged rather than chased,
+since it's software-engineer territory (timer/session state), not a UI
+regression from this change. `bunx vitest run src/modules/workout-mode`
+(82 tests, including the label-based Reps/Weight tests) and `biome check`
+both stayed green throughout.

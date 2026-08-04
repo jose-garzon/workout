@@ -18,8 +18,10 @@ function repsRangeLabel(repsPerSet: number[]): string {
 }
 
 /**
- * One exercise at a time (exercise-execution spec): the plan, the single
- * weight field + previous-weight reference, the stopwatch, and — once
+ * One exercise at a time (exercise-execution spec): the plan, the reps +
+ * weight fields (reps prefilled from the previous session's reps at this set
+ * index, for progressive overload) + a previous-weight reference, the
+ * stopwatch, and — once
  * `timer.phase === 'exercise-complete'` — the Next exercise control. On the
  * day's last exercise `status` moves straight to `'success'` (design.md's
  * seam contract), so this component never renders a complete-screen for
@@ -38,6 +40,8 @@ export function ExerciseView({ session }: ExerciseViewProps) {
     weight,
     setWeight,
     previousWeight,
+    reps,
+    setReps,
     canStartSet,
     timer,
     completedSets,
@@ -63,22 +67,41 @@ export function ExerciseView({ session }: ExerciseViewProps) {
       </div>
 
       <div className="flex flex-col gap-[var(--space-2)]">
-        {/* `key` remounts the field fresh whenever the exercise changes —
-            the same "remount to reseed uncontrolled state" pattern
-            `Composer`'s prefill uses — so it never fights a controlled
-            `value={String(weight)}` binding while the user is mid-decimal. */}
-        <WeightField
-          key={currentExercise.id}
-          unitLabel={unitLabel}
-          weight={weight}
-          setWeight={setWeight}
-          // Locked while a set is running (§D12 "editable" only means
-          // `ready`, between sets) — armed-but-idle is the one phase the
-          // entered weight can still change; `work`/`rest`/`overtime`/
-          // `exercise-complete` all lock it so a value can't shift under a
-          // set that's already in flight.
-          disabled={timer.phase !== "ready"}
-        />
+        {/* `control-gap-min` (design-system.md §2, 16px) — the floor for
+            spacing between two adjacent standalone tap targets, which these
+            two fields are now that they sit side by side. */}
+        <div className="flex gap-[var(--space-4)]">
+          {/* Reps is a plain controlled field — it re-defaults on every NEW
+              set (session.enteredReps resets to null, the seam re-fills it
+              from previous-session reps at this set index), so it needs no
+              remount-to-reseed trick: the fresh default just flows straight
+              through the `value` prop. */}
+          <div className="min-w-0 flex-1">
+            <RepsField
+              reps={reps}
+              setReps={setReps}
+              disabled={timer.phase !== "ready"}
+            />
+          </div>
+          {/* `key` remounts the field fresh whenever the exercise changes —
+              the same "remount to reseed uncontrolled state" pattern
+              `Composer`'s prefill uses — so it never fights a controlled
+              `value={String(weight)}` binding while the user is mid-decimal. */}
+          <div className="min-w-0 flex-1">
+            <WeightField
+              key={currentExercise.id}
+              unitLabel={unitLabel}
+              weight={weight}
+              setWeight={setWeight}
+              // Locked while a set is running (§D12 "editable" only means
+              // `ready`, between sets) — armed-but-idle is the one phase the
+              // entered weight can still change; `work`/`rest`/`overtime`/
+              // `exercise-complete` all lock it so a value can't shift under a
+              // set that's already in flight.
+              disabled={timer.phase !== "ready"}
+            />
+          </div>
+        </div>
         {/* Kept to one line at the 375px floor (was a 2-line wrap) — same
             guidance, tighter copy, ~20px less height in the vertical-fit
             budget. */}
@@ -257,6 +280,39 @@ function SetsProgress({
         })}
       </ul>
     </div>
+  );
+}
+
+/** Plain controlled reps input — see the render-site comment for why it skips WeightField's remount-to-reseed pattern. */
+function RepsField({
+  reps,
+  setReps,
+  disabled,
+}: {
+  reps: number | null;
+  setReps: (value: number | null) => void;
+  disabled: boolean;
+}) {
+  const commit = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed === "") {
+      setReps(null);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) setReps(parsed);
+  };
+
+  return (
+    <Input
+      label="Reps"
+      type="number"
+      size="lg"
+      required
+      value={reps != null ? String(reps) : ""}
+      onChange={commit}
+      disabled={disabled}
+    />
   );
 }
 

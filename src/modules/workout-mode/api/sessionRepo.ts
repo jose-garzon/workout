@@ -32,6 +32,7 @@ function toSession(row: SessionRow): WorkoutSession {
     exerciseLogs: row.exerciseLogs as ExerciseLog[],
     currentExerciseIndex: row.currentExerciseIndex,
     enteredWeightKg: row.enteredWeightKg,
+    enteredReps: row.enteredReps,
     currentSeries: row.currentSeries as SeriesLog[],
     accumRestSeconds: row.accumRestSeconds,
     phase: row.phase as SessionPhase,
@@ -49,6 +50,7 @@ function toSessionRow(session: WorkoutSession): SessionRow {
     exerciseLogs: session.exerciseLogs,
     currentExerciseIndex: session.currentExerciseIndex,
     enteredWeightKg: session.enteredWeightKg,
+    enteredReps: session.enteredReps,
     currentSeries: session.currentSeries,
     accumRestSeconds: session.accumRestSeconds,
     phase: session.phase,
@@ -164,6 +166,31 @@ export async function getPreviousWeight(
         if (set && set.weightKg > 0) return set.weightKg;
       }
       // Matched the exercise but no positive-weight set — keep scanning older.
+    }
+  }
+  return null;
+}
+
+/**
+ * The per-set reps `[set0, set1, ...]` from the most recent completed session
+ * that logged `exerciseId`, or null — the progressive-overload default (add
+ * one or two reps a week) the seam prefills each armed set's reps field with,
+ * indexed by set position. Unlike `getPreviousWeight` this returns the whole
+ * array (reps genuinely vary set-to-set, e.g. a descending pyramid) rather
+ * than a single scalar, and does not skip any set (0 reps is a real, if
+ * unusual, logged value — unlike weight's unset/bodyweight sentinel).
+ */
+export async function getPreviousReps(
+  exerciseId: string,
+): Promise<number[] | null> {
+  const rows = await db.completedSessions
+    .orderBy("completedAt")
+    .reverse()
+    .toArray();
+  for (const row of rows) {
+    for (const log of row.exerciseLogs as ExerciseLog[]) {
+      if (log.exerciseId !== exerciseId) continue;
+      return log.series.map((set) => set.reps);
     }
   }
   return null;

@@ -303,6 +303,34 @@ describe("tap reducer (§D3)", () => {
     const s = session({ phase: "exercise-complete" });
     expect(tap(s, TWO_EX_DAY, 10_000)).toEqual(s);
   });
+
+  it("banks the user-entered reps instead of the plan's when enteredReps is set", () => {
+    const s = session({
+      phase: "work",
+      anchorTs: 0,
+      enteredWeightKg: 60,
+      enteredReps: 10, // plan says 8 — user bumped it for progressive overload
+    });
+    const next = tap(s, TWO_EX_DAY, 30_000);
+    expect(next.currentSeries[0]).toEqual({
+      reps: 10,
+      weightKg: 60,
+      workSeconds: 30,
+      volumeKg: 600,
+    });
+  });
+
+  it("resets enteredReps to null on rest → ready, so the next set re-defaults", () => {
+    const s = session({
+      phase: "rest",
+      anchorTs: 0,
+      currentSeries: [seriesLog()],
+      enteredReps: 10, // the just-finished set's reps — must not carry over
+    });
+    const next = tap(s, TWO_EX_DAY, 30_000);
+    expect(next.phase).toBe("ready");
+    expect(next.enteredReps).toBeNull();
+  });
 });
 
 describe("per-exercise derivations + toSeriesView (§D1 revised)", () => {
@@ -347,6 +375,7 @@ describe("advanceExercise (§D3)", () => {
       currentSeries: [seriesLog(), seriesLog()],
       accumRestSeconds: 90,
       enteredWeightKg: 60,
+      enteredReps: 10,
       phase: "exercise-complete",
     });
     const next = advanceExercise(s, 500_000);
@@ -355,6 +384,7 @@ describe("advanceExercise (§D3)", () => {
       currentSeries: [],
       accumRestSeconds: 0,
       enteredWeightKg: null,
+      enteredReps: null,
       phase: "ready",
       anchorTs: 500_000,
     });

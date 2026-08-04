@@ -63,6 +63,7 @@ export interface SessionRow {
   exerciseLogs: unknown[];
   currentExerciseIndex: number;
   enteredWeightKg: number | null;
+  enteredReps: number | null;
   /** SeriesLog[] — sets completed within the current exercise, mapped by sessionRepo. */
   currentSeries: unknown[];
   accumRestSeconds: number;

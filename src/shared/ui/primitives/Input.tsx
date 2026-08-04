@@ -122,7 +122,18 @@ export function Input({
           // clean rectangle, instead of the global `:focus-visible` rule
           // outlining just this bare <input>'s inset bounds.
           style={{ boxShadow: "none" }}
-          className={`${SIZE_VALUE_TEXT[size]} min-w-0 flex-1 bg-transparent px-[var(--control-padding-inline-md)] text-text placeholder:text-text-muted focus:outline-none`}
+          className={`${SIZE_VALUE_TEXT[size]} min-w-0 flex-1 bg-transparent pl-[var(--control-padding-inline-md)] ${
+            // When a suffix chip follows, its own left-edge gap already
+            // separates it from the value — charging the input a second
+            // full control-padding-inline-md on its right (in addition to
+            // the suffix's) double-pads that seam and starves the value's
+            // available width for no visible benefit. A small space-2 gap
+            // keeps value and suffix from touching; the suffix still owns
+            // the box's actual right-edge padding.
+            suffix
+              ? "pr-[var(--space-2)]"
+              : "pr-[var(--control-padding-inline-md)]"
+          } text-text placeholder:text-text-muted focus:outline-none`}
         />
         {suffix && (
           <span
