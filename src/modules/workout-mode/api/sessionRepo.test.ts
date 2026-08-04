@@ -3,6 +3,7 @@ import { db } from "@/shared/db";
 import type { CompletedSession, ExerciseLog, WorkoutSession } from "../types";
 import {
   clearInProgress,
+  getCompletedForRoutine,
   getInProgress,
   getPreviousWeight,
   saveCompleted,
@@ -54,8 +55,9 @@ function completed(
   id: string,
   completedAt: number,
   logs: ExerciseLog[],
+  routineId = "r1",
 ): CompletedSession {
-  return { id, routineId: "r1", dayId: "d1", completedAt, exerciseLogs: logs };
+  return { id, routineId, dayId: "d1", completedAt, exerciseLogs: logs };
 }
 
 beforeEach(async () => {
@@ -99,6 +101,27 @@ describe("completed session + ratings", () => {
     const row = await db.completedSessions.get("c1");
     expect(row?.difficulty).toBe(4);
     expect(row?.fatigue).toBe(3);
+  });
+});
+
+describe("getCompletedForRoutine (edit-history §Decision 1)", () => {
+  it("filters by routineId, orders newest-first, and caps at the limit", async () => {
+    await saveCompleted(completed("a", 1000, [log("e1", 60)], "active"));
+    await saveCompleted(completed("b", 3000, [log("e1", 65)], "active"));
+    await saveCompleted(completed("c", 2000, [log("e1", 70)], "active"));
+    // Different routine — must be excluded.
+    await saveCompleted(completed("x", 4000, [log("e1", 99)], "other"));
+
+    const all = await getCompletedForRoutine("active", 20);
+    expect(all.map((s) => s.id)).toEqual(["b", "c", "a"]);
+
+    const capped = await getCompletedForRoutine("active", 2);
+    expect(capped.map((s) => s.id)).toEqual(["b", "c"]);
+  });
+
+  it("returns an empty array when the routine has no completed sessions", async () => {
+    await saveCompleted(completed("x", 1000, [log("e1", 60)], "other"));
+    expect(await getCompletedForRoutine("active", 20)).toEqual([]);
   });
 });
 

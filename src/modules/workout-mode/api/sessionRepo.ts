@@ -56,6 +56,19 @@ function toSessionRow(session: WorkoutSession): SessionRow {
   };
 }
 
+function toCompletedSession(row: CompletedSessionRow): CompletedSession {
+  const session: CompletedSession = {
+    id: row.id,
+    routineId: row.routineId,
+    dayId: row.dayId,
+    completedAt: row.completedAt,
+    exerciseLogs: row.exerciseLogs as ExerciseLog[],
+  };
+  if (row.difficulty !== undefined) session.difficulty = row.difficulty;
+  if (row.fatigue !== undefined) session.fatigue = row.fatigue;
+  return session;
+}
+
 function toCompletedRow(session: CompletedSession): CompletedSessionRow {
   const row: CompletedSessionRow = {
     id: session.id,
@@ -107,6 +120,25 @@ export async function updateRatings(
   if (Object.keys(patch).length > 0) {
     await db.completedSessions.update(id, patch);
   }
+}
+
+/**
+ * Completed sessions for `routineId`, most-recent first, capped at `limit`
+ * (routine-edit-history design.md §Decision 1). Orders by the `completedAt`
+ * index (newest first, like `getPreviousWeight`), filters by `routineId`, and
+ * stops at `limit` — the recent window fed to the edit-history summarizer.
+ */
+export async function getCompletedForRoutine(
+  routineId: string,
+  limit: number,
+): Promise<CompletedSession[]> {
+  const rows = await db.completedSessions
+    .orderBy("completedAt")
+    .reverse()
+    .filter((row) => row.routineId === routineId)
+    .limit(limit)
+    .toArray();
+  return rows.map(toCompletedSession);
 }
 
 /**

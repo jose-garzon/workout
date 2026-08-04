@@ -7,6 +7,7 @@ import type { Goals, Profile } from "@/modules/profile-goals";
 import { ProfileDrawer } from "@/modules/profile-goals/ui/ProfileDrawer";
 import { Splash } from "@/modules/profile-goals/ui/Splash";
 import { RoutineHomeScreen } from "@/modules/routine-generation/ui/RoutineHomeScreen";
+import { useSessionSummary } from "@/modules/workout-mode";
 
 /**
  * Root route ('/') — thin client wrapper (design.md §4.1, §D1). Mounts the
@@ -36,6 +37,10 @@ const FirstRunGate = dynamic(
  */
 function Home({ profile, goals }: { profile: Profile; goals: Goals | null }) {
   const [editOpen, setEditOpen] = useState(false);
+  // The on-device history summary threaded into an AI edit (routine-edit-history
+  // design.md §Decision 4): a plain `string | null` from workout-mode's barrel —
+  // no D type crosses into routine-generation, keeping the graph acyclic.
+  const sessionSummary = useSessionSummary();
 
   return (
     <>
@@ -51,6 +56,7 @@ function Home({ profile, goals }: { profile: Profile; goals: Goals | null }) {
         notes={goals?.notes}
         weekStrip={<CalendarWeekStrip />}
         onEditProfile={() => setEditOpen(true)}
+        sessionSummary={sessionSummary}
       />
       <ProfileDrawer
         open={editOpen}

@@ -33,6 +33,12 @@ export interface RoutineEditorProps {
   onOpenChange: (open: boolean) => void;
   /** Focus returns here on close — the button lives in `RoutineSummary`, not here. */
   editButtonRef: RefObject<HTMLButtonElement | null>;
+  /**
+   * The on-device recent-history summary (routine-edit-history) forwarded from
+   * the app composition layer; passed verbatim to the edit `submit`. `null`/
+   * absent means no history — the edit proceeds exactly as before.
+   */
+  sessionSummary?: string | null;
 }
 
 function prefersReducedMotion(): boolean {
@@ -66,6 +72,7 @@ export function RoutineEditor({
   open,
   onOpenChange,
   editButtonRef,
+  sessionSummary,
 }: RoutineEditorProps) {
   const { status, errorMessage, submit, reset } = useRoutineEdit();
   const [mounted, setMounted] = useState(open);
@@ -133,7 +140,7 @@ export function RoutineEditor({
 
   function handleSubmit() {
     if (!canSubmit) return;
-    void submit(text.trim());
+    void submit(text.trim(), sessionSummary ?? null);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {

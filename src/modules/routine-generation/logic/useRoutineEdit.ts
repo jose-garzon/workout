@@ -23,8 +23,13 @@ export interface RoutineEdit {
   errorMessage: string | null;
   /**
    * Submit a targeted edit. No-op on empty/whitespace or when no routine exists.
+   * `sessionSummary` (routine-edit-history) is an optional on-device history
+   * summary the seam forwards verbatim to the AI; omitted when null/absent.
    */
-  submit: (instruction: string) => Promise<void>;
+  submit: (
+    instruction: string,
+    sessionSummary?: string | null,
+  ) => Promise<void>;
   /** Return to idle (drop an error / clear after close). */
   reset: () => void;
 }
@@ -45,20 +50,23 @@ export function useRoutineEdit(): RoutineEdit {
   const status = useEditStore((s) => s.status);
   const error = useEditStore((s) => s.error);
 
-  const submit = useCallback(async (instruction: string) => {
-    if (instruction.trim() === "") return;
-    const current = await getActive();
-    if (current === null) return;
+  const submit = useCallback(
+    async (instruction: string, sessionSummary?: string | null) => {
+      if (instruction.trim() === "") return;
+      const current = await getActive();
+      if (current === null) return;
 
-    useEditStore.getState().start();
-    const outcome = await editRoutine(current, instruction);
-    if (outcome.ok) {
-      await saveActive(outcome.routine);
-      useEditStore.getState().succeed();
-    } else {
-      useEditStore.getState().fail(outcome.error);
-    }
-  }, []);
+      useEditStore.getState().start();
+      const outcome = await editRoutine(current, instruction, sessionSummary);
+      if (outcome.ok) {
+        await saveActive(outcome.routine);
+        useEditStore.getState().succeed();
+      } else {
+        useEditStore.getState().fail(outcome.error);
+      }
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     useEditStore.getState().reset();

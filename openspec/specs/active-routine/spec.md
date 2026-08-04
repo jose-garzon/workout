@@ -33,26 +33,6 @@ routine SHALL leave no more than one active routine persisted.
 - **WHEN** a new routine is adopted
 - **THEN** exactly one active routine remains persisted (the new one)
 
-### Requirement: Replacing an existing routine requires explicit confirmation
-
-The system SHALL require explicit user confirmation before replacing an existing
-active routine when a new generation succeeds. Without confirmation, the existing
-routine SHALL remain the active routine.
-
-#### Scenario: Confirming replaces the routine
-
-- **GIVEN** an active routine exists and a new generation has succeeded
-- **WHEN** the user explicitly confirms replacement
-- **THEN** the new routine becomes the active routine and the previous one is
-  discarded
-
-#### Scenario: Declining keeps the current routine
-
-- **GIVEN** an active routine exists and a new generation has succeeded
-- **WHEN** the user declines or dismisses the replacement confirmation
-- **THEN** the previous routine remains the active routine and the new one is not
-  persisted
-
 ### Requirement: Active routine is readable across the app
 
 The system SHALL expose the active routine (or its absence) so the home surface

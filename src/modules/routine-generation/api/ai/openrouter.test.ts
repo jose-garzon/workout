@@ -138,4 +138,36 @@ describe("handleGenerateRoutine — edit branch", () => {
     );
     expect(response.status).toBe(400);
   });
+
+  it("folds a session-history summary into the prompt when present (routine-edit-history)", async () => {
+    const upstream = captureUpstream();
+    const summary =
+      "Recent history (last 2 sessions):\n- Bench Press: 2 sessions, 60→65 kg";
+    const response = await handleGenerateRoutine(
+      request({ ...EDIT_BODY, sessionSummary: summary }),
+    );
+    expect(response.status).toBe(200);
+
+    const userMessage =
+      upstream.get()?.messages.find((m) => m.role === "user")?.content ?? "";
+    expect(userMessage).toContain("Recent workout history:");
+    expect(userMessage).toContain(summary);
+  });
+
+  it("omits the history block for an empty summary, leaving the prompt history-less", async () => {
+    const withEmpty = captureUpstream();
+    await handleGenerateRoutine(
+      request({ ...EDIT_BODY, sessionSummary: "   " }),
+    );
+    const emptyUser =
+      withEmpty.get()?.messages.find((m) => m.role === "user")?.content ?? "";
+
+    const baseline = captureUpstream();
+    await handleGenerateRoutine(request(EDIT_BODY));
+    const baseUser =
+      baseline.get()?.messages.find((m) => m.role === "user")?.content ?? "";
+
+    expect(emptyUser).not.toContain("Recent workout history:");
+    expect(emptyUser).toBe(baseUser);
+  });
 });

@@ -79,12 +79,19 @@ function parseBuildBody(body: {
 function parseEditBody(body: {
   instruction?: unknown;
   routine?: unknown;
+  sessionSummary?: unknown;
 }): ChatMessage[] | null {
   const instruction =
     typeof body.instruction === "string" ? body.instruction : null;
   if (instruction === null || instruction.trim() === "") return null;
   if (typeof body.routine !== "object" || body.routine === null) return null;
-  return buildEditPrompt(instruction, body.routine);
+  // The on-device history summary (routine-edit-history) is prompt context, like
+  // `routine` — accepted only as a non-empty string, otherwise omitted.
+  const sessionSummary =
+    typeof body.sessionSummary === "string" && body.sessionSummary.trim() !== ""
+      ? body.sessionSummary
+      : undefined;
+  return buildEditPrompt(instruction, body.routine, sessionSummary);
 }
 
 /** Narrow the client body into the chat messages, branching on `mode`. */

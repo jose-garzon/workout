@@ -5,6 +5,7 @@
  * Internals (Zustand hot store, display tick, repo) are private.
  */
 
+export { useSessionSummary } from "./logic/useSessionSummary";
 export type {
   CurrentExerciseView,
   OverviewExercise,

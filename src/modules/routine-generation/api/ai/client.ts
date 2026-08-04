@@ -300,16 +300,31 @@ export async function generateRoutine(
  * a targeted `instruction`, then assemble the response back into a `Routine`
  * with ids preserved for unchanged content (§C). Reuses the one dispatch + one
  * stream parser; no thinking log is wired for edits.
+ *
+ * `sessionSummary` (routine-edit-history §Decision 4/5) is an optional on-device
+ * summary of the routine's recent completed-session history. It rides as a plain
+ * optional string and is included on the body ONLY when it is a non-empty string
+ * — omitted otherwise, leaving the request byte-identical to a history-less edit.
  */
 export async function editRoutine(
   current: Routine,
   instruction: string,
+  sessionSummary?: string | null,
 ): Promise<RoutineOutcome> {
-  const dispatched = await postToProxy({
+  const body: {
+    mode: "edit";
+    instruction: string;
+    routine: RoutinePayload;
+    sessionSummary?: string;
+  } = {
     mode: "edit",
     instruction,
     routine: stripToPayload(current),
-  });
+  };
+  if (typeof sessionSummary === "string" && sessionSummary.trim() !== "") {
+    body.sessionSummary = sessionSummary;
+  }
+  const dispatched = await postToProxy(body);
   if (!dispatched.ok) {
     return { ok: false, error: dispatched.error };
   }

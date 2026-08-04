@@ -131,4 +131,24 @@ describe("buildEditPrompt", () => {
       buildEditPrompt("x", routine),
     );
   });
+
+  it("appends a recent-history block when a session summary is present (routine-edit-history)", () => {
+    const summary = "Recent history (last 3 sessions):\n- Bench: 3 sessions";
+    const [system, user] = buildEditPrompt(
+      "lighten the bench",
+      routine,
+      summary,
+    );
+    expect(user.content).toContain("Recent workout history:");
+    expect(user.content).toContain(summary);
+    // The system prompt now instructs the model to consider that history.
+    expect(system.content.toLowerCase()).toContain("recent workout history");
+  });
+
+  it("is byte-identical to a history-less edit when the summary is absent or empty", () => {
+    const base = buildEditPrompt("add a legs day", routine);
+    expect(buildEditPrompt("add a legs day", routine, undefined)).toEqual(base);
+    expect(buildEditPrompt("add a legs day", routine, "   ")).toEqual(base);
+    expect(base[1].content).not.toContain("Recent workout history:");
+  });
 });

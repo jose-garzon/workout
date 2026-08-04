@@ -174,6 +174,8 @@ const EDIT_SYSTEM_PROMPT = [
     "must stay EXACTLY the same — same day names, same exercise names, same sets,",
     "reps, and rest. Do not rename, reorder, add, or drop anything you were not",
     "asked to change.",
+    "If recent workout history is provided, take it into account when applying",
+    "the change.",
   ].join(" "),
   OUTPUT_CONTRACT,
   SCHEMA_SHAPE,
@@ -184,20 +186,29 @@ const EDIT_SYSTEM_PROMPT = [
  * Build the chat messages for an EDIT request (design.md §B). `routine` is the
  * user's current routine, already stripped of ids, echoed back purely as prompt
  * context — it is not re-validated here (the RESPONSE is validated client-side).
+ *
+ * `sessionSummary` (routine-edit-history §Decision 5) is the optional on-device
+ * summary of recent completed-session history; when present it is appended as a
+ * distinct "Recent workout history" block. When absent, the message is
+ * byte-identical to a history-less edit.
  */
 export function buildEditPrompt(
   instruction: string,
   routine: unknown,
+  sessionSummary?: string,
 ): ChatMessage[] {
-  const content = [
+  const lines = [
     "Current routine:",
     JSON.stringify(routine),
     "",
     `Requested change: ${instruction}`,
-  ].join("\n");
+  ];
+  if (sessionSummary !== undefined && sessionSummary.trim() !== "") {
+    lines.push("", "Recent workout history:", sessionSummary);
+  }
 
   return [
     { role: "system", content: EDIT_SYSTEM_PROMPT },
-    { role: "user", content },
+    { role: "user", content: lines.join("\n") },
   ];
 }

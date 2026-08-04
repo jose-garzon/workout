@@ -56,6 +56,14 @@ export interface RoutineHomeScreenProps {
    * block only when supplied.
    */
   onEditProfile?: () => void;
+  /**
+   * The on-device summary of recent completed-session history
+   * (routine-edit-history design.md §Decision 4) — a plain `string | null`
+   * supplied by the app composition layer (same pattern as `weekStrip`), never
+   * read from `workout-mode` directly (firewall rule 1). Forwarded untouched to
+   * `RoutineEditor`, which hands it to the edit `submit`.
+   */
+  sessionSummary?: string | null;
 }
 
 /**
@@ -118,6 +126,7 @@ export function RoutineHomeScreen({
   notes,
   weekStrip,
   onEditProfile,
+  sessionSummary,
 }: RoutineHomeScreenProps) {
   const { routine: active } = useActiveRoutine();
   const { status, progressMessage, error, generate, confirmSave, reset } =
@@ -303,6 +312,7 @@ export function RoutineHomeScreen({
         open={editorOpen}
         onOpenChange={setEditorOpen}
         editButtonRef={editButtonRef}
+        sessionSummary={sessionSummary}
       />
     </>
   );

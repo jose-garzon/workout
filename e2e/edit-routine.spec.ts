@@ -67,6 +67,7 @@ interface EditBody {
   mode?: string;
   instruction?: string;
   routine?: unknown;
+  sessionSummary?: string;
 }
 
 interface RouteOpts {
@@ -141,6 +142,105 @@ async function seedRoutine(page: Page) {
 async function openEditor(page: Page) {
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByLabel("Improve your routine")).toBeVisible();
+}
+
+/**
+ * routine-edit-history (design.md, tasks.md group 6): a session-aware edit
+ * also carries an on-device summary of completed-session history. Seeded
+ * directly via raw IndexedDB (pattern copied from consistency-calendar.spec.ts)
+ * so exercise ids are known ahead of time and can be joined to a seeded
+ * `CompletedSession` — the AI-build path (`seedRoutine`) mints random ids we
+ * can't pre-target.
+ */
+const HISTORY_ROUTINE = {
+  id: "active",
+  name: "Push / Pull / Legs",
+  subtitle: "Five days, no excuses.",
+  createdAt: Date.now(),
+  active: true,
+  days: [
+    {
+      id: "day-push",
+      name: "Push",
+      exercises: [
+        {
+          id: "ex-bench",
+          name: "Bench Press",
+          sets: [{ reps: 8, restSeconds: 120 }],
+        },
+      ],
+    },
+    {
+      id: "day-pull",
+      name: "Pull",
+      exercises: [
+        { id: "ex-row", name: "Row", sets: [{ reps: 10, restSeconds: 90 }] },
+      ],
+    },
+  ],
+};
+
+const HISTORY_PROFILE = {
+  id: "me",
+  displayName: "Alex",
+  gender: "male",
+  age: 28,
+  bodyweightKg: 80,
+  unit: "metric",
+};
+const HISTORY_GOALS = { id: "me", focus: "strength", daysPerWeek: 4 };
+
+const COMPLETED_SESSION = {
+  id: "s1",
+  routineId: "active",
+  dayId: "day-push",
+  completedAt: Date.now() - 60_000,
+  exerciseLogs: [
+    {
+      exerciseId: "ex-bench",
+      name: "Bench Press",
+      series: [{ reps: 8, weightKg: 60, workSeconds: 30, volumeKg: 480 }],
+      restSeconds: 120,
+    },
+  ],
+  difficulty: 4,
+  fatigue: 3,
+};
+
+/** Seed profile/goals/routine (+ optional completed sessions) via raw IndexedDB. */
+async function seedWithHistory(page: Page, sessions: unknown[] = []) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start" }).waitFor({ timeout: 15000 });
+  await page.evaluate(
+    async ({ routine, profile, goals, sessions }) => {
+      const db = await new Promise<IDBDatabase>((res, rej) => {
+        const req = indexedDB.open("workout-pal");
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+      const tx = db.transaction(
+        ["profile", "goals", "routines", "completedSessions"],
+        "readwrite",
+      );
+      tx.objectStore("profile").put(profile);
+      tx.objectStore("goals").put(goals);
+      tx.objectStore("routines").put(routine);
+      for (const s of sessions) tx.objectStore("completedSessions").put(s);
+      await new Promise<void>((res, rej) => {
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+      db.close();
+    },
+    {
+      routine: HISTORY_ROUTINE,
+      profile: HISTORY_PROFILE,
+      goals: HISTORY_GOALS,
+      sessions,
+    },
+  );
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: /Push/ })).toBeVisible();
 }
 
 test.describe("edit-routine", () => {
@@ -321,6 +421,63 @@ test.describe("edit-routine", () => {
     expect(edited).toBe(false);
 
     await context.setOffline(false);
+  });
+
+  test("edit request carries a session-history summary when history exists (AC1.1, routine-edit-history)", async ({
+    page,
+  }) => {
+    let editBody: EditBody | null = null;
+    const externalHosts: string[] = [];
+    await routeAi(page, {
+      onEdit: (body) => {
+        editBody = body;
+      },
+    });
+    await seedWithHistory(page, [COMPLETED_SESSION]);
+    page.on("request", (req) => {
+      const url = new URL(req.url());
+      if (
+        url.origin !== new URL(page.url()).origin &&
+        !url.pathname.includes("/api/generate-routine")
+      ) {
+        externalHosts.push(url.href);
+      }
+    });
+    await openEditor(page);
+
+    await page.getByLabel("Improve your routine").fill("lighten the bench");
+    await page.getByRole("button", { name: "Apply edit" }).click();
+    await expect(page.getByLabel("Improve your routine")).toHaveCount(0);
+
+    const sent = editBody as EditBody | null;
+    expect(sent).not.toBeNull();
+    expect(typeof sent?.sessionSummary).toBe("string");
+    expect(sent?.sessionSummary).toContain("Bench Press");
+
+    // AC4.1/4.2: the summary is computed on-device and sent ONLY to the
+    // existing proxy — no new network call to any other endpoint.
+    expect(externalHosts).toEqual([]);
+  });
+
+  test("edit request omits the session-history summary when there is no history (AC2.1, routine-edit-history)", async ({
+    page,
+  }) => {
+    let editBody: EditBody | null = null;
+    await routeAi(page, {
+      onEdit: (body) => {
+        editBody = body;
+      },
+    });
+    await seedWithHistory(page); // no completed sessions
+    await openEditor(page);
+
+    await page.getByLabel("Improve your routine").fill("add a legs day");
+    await page.getByRole("button", { name: "Apply edit" }).click();
+    await expect(page.getByLabel("Improve your routine")).toHaveCount(0);
+
+    const sent = editBody as EditBody | null;
+    expect(sent).not.toBeNull();
+    expect(sent?.sessionSummary).toBeUndefined();
   });
 
   // ID preservation (tasks.md 7.7). Verifying "previous logged weight survives

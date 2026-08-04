@@ -5,9 +5,11 @@ TBD - created by archiving change routine-generation. Update Purpose after archi
 ## Requirements
 ### Requirement: Prompt composer on home
 
-Home SHALL present a persistent prompt composer as its primary action, allowing
-the user to describe the routine they want in free text. The composer SHALL
-remain available whether or not a routine already exists.
+Home SHALL present a prompt composer as its primary action when no active routine
+exists, allowing the user to describe the routine they want in free text. When an
+active routine exists, the standing prompt composer SHALL be hidden in favor of
+the edit affordance (see the `routine-editing` capability), which becomes the
+post-creation way to change the routine.
 
 #### Scenario: Composer is present after onboarding
 
@@ -15,11 +17,11 @@ remain available whether or not a routine already exists.
 - **WHEN** home is shown
 - **THEN** a prompt composer is present as the primary action, ready for input
 
-#### Scenario: Composer remains available with a routine present
+#### Scenario: Composer is hidden when a routine exists
 
 - **GIVEN** a device with an active routine
 - **WHEN** home is shown
-- **THEN** the prompt composer is still present, allowing another generation
+- **THEN** the standing prompt composer is not shown
 
 #### Scenario: Empty prompt cannot be submitted
 

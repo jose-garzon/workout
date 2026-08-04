@@ -163,6 +163,58 @@ describe("useRoutineEdit — direct-apply", () => {
     expect((await getActive())?.days).toHaveLength(1);
   });
 
+  it("validates a session-aware edit through the unchanged Zod + id-preserving path", async () => {
+    let sentBody: Record<string, unknown> = {};
+    server.use(
+      http.post("/api/generate-routine", async ({ request }) => {
+        sentBody = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse(sseStream(JSON.stringify(EDITED)), {
+          headers: { "content-type": "text/event-stream" },
+        });
+      }),
+    );
+    const { result } = renderHook(() => useRoutineEdit());
+
+    await act(async () => {
+      await result.current.submit(
+        "lighten the bench",
+        "Recent history: Bench 3 sessions",
+      );
+    });
+
+    // The summary rode along on the request…
+    expect(sentBody.sessionSummary).toBe("Recent history: Bench 3 sessions");
+    // …and the response still validated + applied with ids preserved (§C).
+    expect(result.current.status).toBe("success");
+    const saved = await getActive();
+    expect(saved?.days.map((d) => d.name)).toEqual(["Push", "Legs"]);
+    expect(saved?.days[0].id).toBe("day-push");
+  });
+
+  it("rejects a malformed response even when a summary was sent, leaving the routine unchanged", async () => {
+    server.use(
+      http.post(
+        "/api/generate-routine",
+        () =>
+          new HttpResponse(sseStream("not json at all"), {
+            headers: { "content-type": "text/event-stream" },
+          }),
+      ),
+    );
+    const { result } = renderHook(() => useRoutineEdit());
+
+    await act(async () => {
+      await result.current.submit(
+        "lighten the bench",
+        "Recent history: Bench 3 sessions",
+      );
+    });
+
+    expect(result.current.status).toBe("error");
+    expect((await getActive())?.days).toHaveLength(1);
+    expect((await getActive())?.days[0].id).toBe("day-push");
+  });
+
   it("is a no-op for an empty / whitespace-only instruction", async () => {
     let hit = false;
     server.use(
