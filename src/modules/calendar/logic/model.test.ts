@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setActiveLanguage, t } from "@/shared/i18n";
 import type { CompletedRef } from "../types";
 import {
   buildWeek,
@@ -60,16 +61,32 @@ describe("localDayKey", () => {
 
 describe("dayLabel", () => {
   it("renders 'weekday day' without a month or a leading zero on the day", () => {
-    expect(dayLabel("2025-07-12")).toBe("Sat 12");
-    expect(dayLabel("2025-07-01")).toBe("Tue 1");
+    expect(dayLabel("2025-07-12")).toBe(`${t("calendar.weekday.sat")} 12`);
+    expect(dayLabel("2025-07-01")).toBe(`${t("calendar.weekday.tue")} 1`);
   });
 });
 
 describe("monthName", () => {
   it("renders the full current-month name", () => {
-    expect(monthName("2025-07-12")).toBe("July");
-    expect(monthName("2025-01-01")).toBe("January");
-    expect(monthName("2025-12-31")).toBe("December");
+    expect(monthName("2025-07-12")).toBe(t("calendar.month.july"));
+    expect(monthName("2025-01-01")).toBe(t("calendar.month.january"));
+    expect(monthName("2025-12-31")).toBe(t("calendar.month.december"));
+  });
+});
+
+/**
+ * The calendar is no longer language-agnostic (§Decision 6): its labels come
+ * from the dictionary, so they follow the active language — with OUR casing,
+ * which is precisely why `Intl` was rejected.
+ */
+describe("date labels in Spanish", () => {
+  afterEach(() => setActiveLanguage(null));
+
+  it("renders Spanish weekday and month names (AC2.2)", () => {
+    setActiveLanguage("es");
+    expect(dayLabel("2025-07-12")).toBe("Sáb 12");
+    expect(dayLabel("2025-05-12")).toBe("Lun 12");
+    expect(monthName("2025-07-12")).toBe("Julio");
   });
 });
 

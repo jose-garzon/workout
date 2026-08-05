@@ -1,34 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { type TranslationKey, useTranslation } from "@/shared/i18n";
 
 /**
  * The in-flight edit indicator (design.md §F) — `BuildingIndicator`'s
  * edit-flavored counterpart, shown inside the floating editor while a
  * submitted edit is applying. Same bounded bar-loop + cycling-verb shape, a
- * distinct verb set so it never reads as "still building" — `VERBS[0]` is
- * "Improving" on purpose, matching the first paint to the e2e's literal
+ * distinct verb set so it never reads as "still building" — `VERB_KEYS[0]`
+ * is "Improving" on purpose, matching the first paint to the e2e's literal
  * assertion with no separate initial state to special-case.
  */
-const VERBS = [
-  "Improving",
-  "Enhancing",
-  "Powering",
-  "Tuning",
-  "Refining",
-  "Reworking",
-  "Dialing in",
-  "Adjusting",
+const VERB_KEYS: TranslationKey[] = [
+  "routine.editIndicator.verb.improving",
+  "routine.editIndicator.verb.enhancing",
+  "routine.editIndicator.verb.powering",
+  "routine.editIndicator.verb.tuning",
+  "routine.editIndicator.verb.refining",
+  "routine.editIndicator.verb.reworking",
+  "routine.editIndicator.verb.dialingIn",
+  "routine.editIndicator.verb.adjusting",
 ];
 
 const VERB_INTERVAL_MS = 5000;
 
 export function EditIndicator() {
+  const { t } = useTranslation();
   const [verbIndex, setVerbIndex] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setVerbIndex((index) => (index + 1) % VERBS.length);
+      setVerbIndex((index) => (index + 1) % VERB_KEYS.length);
     }, VERB_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
@@ -56,7 +58,9 @@ export function EditIndicator() {
           style={{ height: "100%" }}
         />
       </div>
-      <p className="text-body-strong">{VERBS[verbIndex]} your routine…</p>
+      <p className="text-body-strong">
+        {t("routine.indicator.template", { verb: t(VERB_KEYS[verbIndex]) })}
+      </p>
     </div>
   );
 }

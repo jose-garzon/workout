@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { useRoutineEdit } from "@/modules/routine-generation";
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import { EditIndicator } from "./EditIndicator";
 
@@ -74,6 +75,7 @@ export function RoutineEditor({
   editButtonRef,
   sessionSummary,
 }: RoutineEditorProps) {
+  const { t } = useTranslation();
   const { status, errorMessage, submit, reset } = useRoutineEdit();
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
@@ -164,12 +166,12 @@ export function RoutineEditor({
       >
         <div className="flex items-center justify-between gap-[var(--space-4)]">
           <h3 id="routine-editor-heading" className="text-title-3">
-            Edit your routine
+            {t("editor.heading")}
           </h3>
           <button
             type="button"
             onClick={dismiss}
-            aria-label="Close editor"
+            aria-label={t("editor.close")}
             className="anim-press flex h-[var(--tap-target-min)] w-[var(--tap-target-min)] shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text"
           >
             <CloseIcon />
@@ -178,13 +180,13 @@ export function RoutineEditor({
 
         <textarea
           ref={textareaRef}
-          aria-label="Improve your routine"
+          aria-label={t("editor.label")}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           disabled={busy}
           rows={2}
-          placeholder="e.g. swap dumbbells for machines on leg day…"
+          placeholder={t("editor.placeholder")}
           style={{ boxShadow: "none" }}
           className="text-body min-h-[calc(var(--space-6)*2)] w-full resize-none border border-border bg-transparent px-[var(--space-4)] py-[var(--space-3)] text-text placeholder:text-text-muted transition-colors focus:border-text focus:outline-none focus-visible:[box-shadow:var(--focus-ring)] disabled:opacity-40"
         />
@@ -203,7 +205,7 @@ export function RoutineEditor({
           size="lg"
           fullWidth
         >
-          Apply edit
+          {t("editor.submit")}
         </Button>
       </section>
     </div>

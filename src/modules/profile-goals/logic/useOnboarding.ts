@@ -13,7 +13,7 @@ import {
   type OnboardingDraft,
   type OnboardingField,
   STEP_COUNT,
-  STEP_TITLES,
+  stepTitle,
   validateStep,
 } from "./model";
 
@@ -158,7 +158,7 @@ export function useOnboarding(): OnboardingApi {
   return {
     stepIndex: state.stepIndex,
     stepCount: STEP_COUNT,
-    stepTitle: STEP_TITLES[state.stepIndex],
+    stepTitle: stepTitle(state.stepIndex),
     fields: getStepFields(state.stepIndex, state.draft, state.errors),
     setField,
     canGoBack: state.stepIndex > 0,

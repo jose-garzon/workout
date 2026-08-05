@@ -6,8 +6,15 @@
  * canonicalization. `useOnboarding` composes these; `ui/` renders their output
  * and never re-implements a rule. Descriptor types live here (the pure leaf) so
  * `model` and `useOnboarding` form a single acyclic edge (useOnboarding → model).
+ *
+ * ALL user-facing copy this module produces — step titles, field labels, choice
+ * labels, placeholders and validation messages — goes through `t` from
+ * `@/shared/i18n` (i18n-spanish-support §Context). It is not React, so it uses
+ * `t` directly rather than `useTranslation`. Every string is resolved AT CALL
+ * TIME, never at module load, so the language is already known.
  */
 
+import { t } from "@/shared/i18n";
 import type {
   Gender,
   Goals,
@@ -80,30 +87,42 @@ const STEP_FIELDS: readonly (readonly FieldName[])[] = [
   ["focus", "daysPerWeek"],
 ];
 
-export const STEP_TITLES: readonly string[] = [
-  "About you",
-  "A few basics",
-  "Your body",
-  "Your training",
-];
+const STEP_TITLE_KEYS = [
+  "onboarding.step.aboutYou",
+  "onboarding.step.basics",
+  "onboarding.step.body",
+  "onboarding.step.training",
+] as const;
 
-const GENDER_OPTIONS: FieldOption[] = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other", label: "Other" },
-];
+/** The step's heading in the active language (resolved per call, not at import). */
+export function stepTitle(stepIndex: number): string {
+  return t(STEP_TITLE_KEYS[stepIndex]);
+}
 
-const UNIT_OPTIONS: FieldOption[] = [
-  { value: "metric", label: "Metric" },
-  { value: "imperial", label: "Imperial" },
-];
+/** Choice options carry translated labels, so they are built per call too. */
+function genderOptions(): FieldOption[] {
+  return [
+    { value: "male", label: t("onboarding.gender.male") },
+    { value: "female", label: t("onboarding.gender.female") },
+    { value: "other", label: t("onboarding.gender.other") },
+  ];
+}
 
-const FOCUS_OPTIONS: FieldOption[] = [
-  { value: "strength", label: "Strength" },
-  { value: "hypertrophy", label: "Hypertrophy" },
-  { value: "endurance", label: "Endurance" },
-  { value: "general", label: "General fitness" },
-];
+function unitOptions(): FieldOption[] {
+  return [
+    { value: "metric", label: t("onboarding.unit.metric") },
+    { value: "imperial", label: t("onboarding.unit.imperial") },
+  ];
+}
+
+function focusOptions(): FieldOption[] {
+  return [
+    { value: "strength", label: t("onboarding.focus.strength") },
+    { value: "hypertrophy", label: t("onboarding.focus.hypertrophy") },
+    { value: "endurance", label: t("onboarding.focus.endurance") },
+    { value: "general", label: t("onboarding.focus.general") },
+  ];
+}
 
 const DAYS_OPTIONS: FieldOption[] = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
   value: String(n),
@@ -167,21 +186,21 @@ function lengthUnit(unit: string): "cm" | "in" {
 function fieldLabel(name: FieldName, unit: string): string {
   switch (name) {
     case "displayName":
-      return "Your name";
+      return t("onboarding.field.displayName");
     case "gender":
-      return "Gender";
+      return t("onboarding.field.gender");
     case "age":
-      return "Age";
+      return t("onboarding.field.age");
     case "unit":
-      return "Units";
+      return t("onboarding.field.unit");
     case "bodyweight":
-      return `Bodyweight (${weightUnit(unit)})`;
+      return t("onboarding.field.bodyweight", { unit: weightUnit(unit) });
     case "height":
-      return `Height (${lengthUnit(unit)})`;
+      return t("onboarding.field.height", { unit: lengthUnit(unit) });
     case "focus":
-      return "Primary goal";
+      return t("onboarding.field.focus");
     case "daysPerWeek":
-      return "Training days per week";
+      return t("onboarding.field.daysPerWeek");
   }
 }
 
@@ -214,14 +233,14 @@ export function describeField(
         ...base,
         kind: "text",
         required: true,
-        placeholder: "e.g. Alex",
+        placeholder: t("onboarding.placeholder.displayName"),
       };
     case "gender":
       return {
         ...base,
         kind: "choice",
         required: true,
-        options: GENDER_OPTIONS,
+        options: genderOptions(),
       };
     case "age":
       return {
@@ -231,10 +250,15 @@ export function describeField(
         min: 13,
         max: 120,
         step: 1,
-        placeholder: "e.g. 28",
+        placeholder: t("onboarding.placeholder.age"),
       };
     case "unit":
-      return { ...base, kind: "choice", required: true, options: UNIT_OPTIONS };
+      return {
+        ...base,
+        kind: "choice",
+        required: true,
+        options: unitOptions(),
+      };
     case "bodyweight":
       return {
         ...base,
@@ -258,7 +282,7 @@ export function describeField(
         ...base,
         kind: "choice",
         required: true,
-        options: FOCUS_OPTIONS,
+        options: focusOptions(),
       };
     case "daysPerWeek":
       return { ...base, kind: "choice", required: true, options: DAYS_OPTIONS };
@@ -289,36 +313,42 @@ export function validateField(
   const raw = draft[name];
   switch (name) {
     case "displayName":
-      return raw.trim() === "" ? "Enter your name" : null;
+      return raw.trim() === "" ? t("onboarding.error.displayName") : null;
     case "gender":
-      return isGender(raw) ? null : "Choose an option";
+      return isGender(raw) ? null : t("onboarding.error.gender");
     case "age": {
-      if (raw.trim() === "") return "Enter your age";
+      if (raw.trim() === "") return t("onboarding.error.age.required");
       const n = Number(raw);
       return Number.isInteger(n) && n >= 13 && n <= 120
         ? null
-        : "Enter an age from 13 to 120";
+        : t("onboarding.error.age.range");
     }
     case "unit":
-      return raw === "metric" || raw === "imperial" ? null : "Choose a unit";
+      return raw === "metric" || raw === "imperial"
+        ? null
+        : t("onboarding.error.unit");
     case "bodyweight": {
-      if (raw.trim() === "") return "Enter your bodyweight";
+      if (raw.trim() === "") return t("onboarding.error.bodyweight.required");
       const n = Number(raw);
-      return Number.isFinite(n) && n > 0 ? null : "Enter a valid bodyweight";
+      return Number.isFinite(n) && n > 0
+        ? null
+        : t("onboarding.error.bodyweight.invalid");
     }
     case "height": {
       if (raw.trim() === "") return null; // optional — blank never blocks
       const n = Number(raw);
-      return Number.isFinite(n) && n > 0 ? null : "Enter a valid height";
+      return Number.isFinite(n) && n > 0
+        ? null
+        : t("onboarding.error.height.invalid");
     }
     case "focus":
-      return isTrainingFocus(raw) ? null : "Choose a goal";
+      return isTrainingFocus(raw) ? null : t("onboarding.error.focus");
     case "daysPerWeek": {
-      if (raw.trim() === "") return "Choose your training days";
+      if (raw.trim() === "") return t("onboarding.error.daysPerWeek.required");
       const n = Number(raw);
       return Number.isInteger(n) && n >= 1 && n <= 7
         ? null
-        : "Choose 1 to 7 days";
+        : t("onboarding.error.daysPerWeek.range");
     }
   }
 }

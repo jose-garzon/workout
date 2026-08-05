@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { RefObject } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import type { Routine } from "../types";
 
@@ -51,8 +52,13 @@ function EditIcon() {
 }
 
 /** A short "3 exercises" style hint for a day row. */
-function daySummary(exerciseCount: number): string {
-  return exerciseCount === 1 ? "1 exercise" : `${exerciseCount} exercises`;
+function daySummary(
+  exerciseCount: number,
+  t: ReturnType<typeof useTranslation>["t"],
+): string {
+  return exerciseCount === 1
+    ? t("routine.summary.exercises.one")
+    : t("routine.summary.exercises.other", { count: exerciseCount });
 }
 
 /**
@@ -88,6 +94,7 @@ export function RoutineSummary({
   onEdit,
   editButtonRef,
 }: RoutineSummaryProps) {
+  const { t } = useTranslation();
   return (
     <section
       aria-labelledby="routine-summary-heading"
@@ -104,7 +111,7 @@ export function RoutineSummary({
           onClick={onEdit}
         >
           <EditIcon />
-          Edit
+          {t("routine.summary.edit")}
         </Button>
       </div>
       <ul className="flex flex-col gap-[var(--space-3)]">
@@ -123,7 +130,7 @@ export function RoutineSummary({
               <span className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)]">
                 <span className="text-title-3">{day.name}</span>
                 <span className="text-caption text-text-muted">
-                  {daySummary(day.exercises.length)}
+                  {daySummary(day.exercises.length, t)}
                 </span>
               </span>
               <ChevronIcon className="shrink-0 text-text-muted transition-colors group-hover:text-text" />

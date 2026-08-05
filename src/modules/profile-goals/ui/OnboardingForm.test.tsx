@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { t } from "@/shared/i18n";
 import type { OnboardingApi, OnboardingField } from "../logic/useOnboarding";
 import { OnboardingForm } from "./OnboardingForm";
 
@@ -80,7 +81,9 @@ describe("OnboardingForm", () => {
       screen.getByLabelText("Bodyweight (kg)", { exact: false }),
     ).toHaveValue("82");
 
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("onboarding.action.back") }),
+    );
     expect(api.back).toHaveBeenCalledTimes(1);
   });
 
@@ -103,7 +106,9 @@ describe("OnboardingForm", () => {
     // Continue is always activatable — next() itself decides whether the
     // step advances (design.md §3.1: next() never throws, it never blocks
     // the button).
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("onboarding.action.continue") }),
+    );
     expect(api.next).toHaveBeenCalledTimes(1);
   });
 
@@ -132,6 +137,10 @@ describe("OnboardingForm", () => {
 
     render(<OnboardingForm onboarding={api} />);
 
-    expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        t("onboarding.step.indicator", { current: 2, total: 4 }),
+      ),
+    ).toBeInTheDocument();
   });
 });

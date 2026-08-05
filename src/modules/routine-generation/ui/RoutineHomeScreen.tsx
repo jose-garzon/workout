@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useRoutineEdit } from "@/modules/routine-generation";
+import { type TranslationKey, useTranslation } from "@/shared/i18n";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
 import { useActiveRoutine } from "../logic/useActiveRoutine";
@@ -94,25 +95,21 @@ function EditProfileIcon() {
 }
 
 /** Human, specific copy per AI failure — never a raw technical string. */
-const ERROR_MESSAGES: Record<string, string> = {
-  offline: "You're offline — building a routine needs a connection.",
-  network: "Couldn't reach the routine generator. Try again.",
-  "rate-limit": "Too many requests right now. Wait a moment, then retry.",
-  parse: "The generator returned something unexpected. Try building again.",
-  provider: "The routine generator had a problem. Try again.",
+const ERROR_MESSAGE_KEYS: Record<string, TranslationKey> = {
+  offline: "error.build.offline",
+  network: "error.build.network",
+  "rate-limit": "error.build.rateLimit",
+  parse: "error.build.parse",
+  provider: "error.build.provider",
 };
 
-/**
- * Always strength-focused, regardless of the user's own saved goal — a
- * concrete, well-formed prompt is the point (a specific split built around
- * the four "big" lifts), not a personalized suggestion.
- */
-const EXAMPLE_PROMPT =
-  "A 4-day strength program built around squat, bench, deadlift, and overhead press.";
-
-function goalLabel(focus: string): string {
-  return focus.charAt(0).toUpperCase() + focus.slice(1);
-}
+/** The four `TrainingFocus` values (design.md §3.1) → their home badge key. */
+const GOAL_LABEL_KEYS: Record<string, TranslationKey> = {
+  strength: "home.goal.strength",
+  hypertrophy: "home.goal.hypertrophy",
+  endurance: "home.goal.endurance",
+  general: "home.goal.general",
+};
 
 export function RoutineHomeScreen({
   displayName,
@@ -128,6 +125,7 @@ export function RoutineHomeScreen({
   onEditProfile,
   sessionSummary,
 }: RoutineHomeScreenProps) {
+  const { t } = useTranslation();
   const { routine: active } = useActiveRoutine();
   const { status, progressMessage, error, generate, confirmSave, reset } =
     useRoutineGeneration();
@@ -152,7 +150,7 @@ export function RoutineHomeScreen({
   const { status: editStatus } = useRoutineEdit();
   const editBusy = editStatus === "editing";
 
-  const name = displayName?.trim() || "there";
+  const name = displayName?.trim() || t("home.greeting.fallbackName");
   const generating = status === "generating";
 
   // First routine adopts frictionlessly (§D5): once a result is held and no
@@ -177,7 +175,7 @@ export function RoutineHomeScreen({
   };
 
   const useExamplePrompt = () => {
-    setPrefill(EXAMPLE_PROMPT);
+    setPrefill(t("home.example.prompt"));
     setComposerKey((key) => key + 1);
   };
 
@@ -194,24 +192,25 @@ export function RoutineHomeScreen({
   }, [progressMessage]);
 
   const motivation = active
-    ? (active.subtitle ?? "Your routine is ready — pick a day to train.")
-    : "Tell me how you train and I'll build your split.";
+    ? (active.subtitle ?? t("home.motivation.ready"))
+    : t("home.motivation.default");
+  const goalKey = GOAL_LABEL_KEYS[focus];
 
   return (
     <>
-      <AppShell title="Home" inert={editBusy}>
+      <AppShell title={t("home.title")} inert={editBusy}>
         {/* Identity block: greeting + goal + motivational line. `AppShell`'s
           own `<h1>{title}</h1>` is `sr-only` (the header shows only the Logo
           + theme toggle), so this `<h2>` is the screen's one VISIBLE
           heading. */}
         <div className="flex flex-col gap-[var(--space-3)]">
           <div className="flex items-center justify-between gap-[var(--space-4)]">
-            <h2 className="text-title-1">Hey, {name}</h2>
+            <h2 className="text-title-1">{t("home.greeting", { name })}</h2>
             {onEditProfile && (
               <button
                 type="button"
                 onClick={onEditProfile}
-                aria-label="Edit profile"
+                aria-label={t("home.editProfile")}
                 className="anim-press flex h-[var(--tap-target-min)] w-[var(--tap-target-min)] shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text"
               >
                 <EditProfileIcon />
@@ -219,7 +218,7 @@ export function RoutineHomeScreen({
             )}
           </div>
           <span className="text-micro inline-flex h-[var(--space-7)] w-fit items-center bg-accent-wash px-[var(--space-4)] text-accent-text">
-            {goalLabel(focus)}
+            {goalKey ? t(goalKey) : focus}
           </span>
           <p className="text-body text-text-muted">{motivation}</p>
         </div>
@@ -245,15 +244,19 @@ export function RoutineHomeScreen({
           ) : status === "idle" ? (
             <div className="flex flex-col gap-[var(--space-4)]">
               <p className="text-body text-text-muted">
-                No routine yet — describe your training below to build one.
+                {t("home.empty.hint")}
               </p>
               <button
                 type="button"
                 onClick={useExamplePrompt}
                 className="anim-press flex flex-col items-start gap-[var(--space-2)] border border-border bg-surface px-[var(--space-5)] py-[var(--space-4)] text-left transition-colors hover:border-text hover:bg-elevated-surface"
               >
-                <span className="text-micro text-accent-text">Try</span>
-                <span className="text-body text-text">“{EXAMPLE_PROMPT}”</span>
+                <span className="text-micro text-accent-text">
+                  {t("home.example.try")}
+                </span>
+                <span className="text-body text-text">
+                  “{t("home.example.prompt")}”
+                </span>
               </button>
             </div>
           ) : null}
@@ -271,7 +274,7 @@ export function RoutineHomeScreen({
                 ref={thinkingLogRef}
                 role="log"
                 aria-live="polite"
-                aria-label="What the generator is thinking"
+                aria-label={t("home.thinking.label")}
                 className="max-h-[var(--space-11)] overflow-y-auto border-l-2 border-border pl-[var(--space-4)]"
               >
                 <p className="text-caption text-text-muted">
@@ -286,10 +289,10 @@ export function RoutineHomeScreen({
                 className="flex items-center justify-between gap-[var(--space-4)] border border-danger px-[var(--space-4)] py-[var(--space-3)]"
               >
                 <p className="text-caption text-danger-text">
-                  {ERROR_MESSAGES[error.kind] ?? ERROR_MESSAGES.provider}
+                  {t(ERROR_MESSAGE_KEYS[error.kind] ?? "error.build.provider")}
                 </p>
                 <Button size="sm" variant="secondary" onClick={reset}>
-                  Dismiss
+                  {t("error.build.dismiss")}
                 </Button>
               </div>
             )}

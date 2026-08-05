@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/shared/db";
+import { t } from "@/shared/i18n";
 import { getGoals, getProfile, saveOnboarding } from "./api/profileRepo";
 import { useOnboarding } from "./logic/useOnboarding";
 import { FirstRunGate } from "./ui/FirstRunGate";
@@ -40,35 +41,58 @@ function renderGate() {
 /** Drive the real UI through all four steps and activate Finish. */
 async function completeOnboarding(name = "Alex") {
   // Gate resolves loading -> WelcomeFlow (no profile); wait for the intro.
-  fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: t("welcome.start") }),
+  );
 
   // Step 1 — name + gender.
-  fireEvent.change(screen.getByLabelText("Your name", { exact: false }), {
-    target: { value: name },
-  });
-  fireEvent.click(screen.getByRole("radio", { name: "Male" }));
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.change(
+    screen.getByLabelText(t("onboarding.field.displayName"), {
+      exact: false,
+    }),
+    { target: { value: name } },
+  );
+  fireEvent.click(
+    screen.getByRole("radio", { name: t("onboarding.gender.male") }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: t("onboarding.action.continue") }),
+  );
 
   // Step 2 — age + units (units default to metric).
-  fireEvent.change(screen.getByLabelText("Age", { exact: false }), {
-    target: { value: "28" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.change(
+    screen.getByLabelText(t("onboarding.field.age"), { exact: false }),
+    { target: { value: "28" } },
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: t("onboarding.action.continue") }),
+  );
 
   // Step 3 — bodyweight (kg); height left blank (optional).
-  fireEvent.change(screen.getByLabelText("Bodyweight (kg)", { exact: false }), {
-    target: { value: "80" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.change(
+    screen.getByLabelText(t("onboarding.field.bodyweight", { unit: "kg" }), {
+      exact: false,
+    }),
+    { target: { value: "80" } },
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: t("onboarding.action.continue") }),
+  );
 
   // Step 4 — focus + training days.
-  fireEvent.click(screen.getByRole("radio", { name: "Strength" }));
+  fireEvent.click(
+    screen.getByRole("radio", { name: t("onboarding.focus.strength") }),
+  );
   const increase = screen.getByRole("button", {
-    name: "Increase Training days per week",
+    name: t("common.stepper.increase", {
+      label: t("onboarding.field.daysPerWeek"),
+    }),
   });
   for (let i = 0; i < 4; i++) fireEvent.click(increase); // seeds 1, steps to 4
 
-  fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: t("onboarding.action.finish") }),
+  );
 }
 
 describe("I1 — seam integration: fill 3 steps -> finish -> home by name", () => {
@@ -107,7 +131,7 @@ describe("I2 — routing gate / no-flash", () => {
     renderGate();
 
     expect(
-      await screen.findByRole("button", { name: "Start" }),
+      await screen.findByRole("button", { name: t("welcome.start") }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Hey/ })).toBeNull();
   });
@@ -130,7 +154,9 @@ describe("I2 — routing gate / no-flash", () => {
     // Loading instant is the neutral Splash — not an onboarding frame: it has
     // no heading at all (Home/Welcome both render an <h1>), and no Start.
     expect(screen.queryByRole("heading")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: t("welcome.start") }),
+    ).toBeNull();
 
     // Resolves directly to home...
     expect(
@@ -139,9 +165,15 @@ describe("I2 — routing gate / no-flash", () => {
 
     // ...and onboarding markup was never mounted across the transition
     // (WelcomeFlow is structurally impossible to mount once hasProfile — AC 12).
-    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Finish" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: t("welcome.start") }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: t("onboarding.action.continue") }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: t("onboarding.action.finish") }),
+    ).toBeNull();
   });
 
   it("shows the neutral Splash during the loading instant", () => {
@@ -149,7 +181,9 @@ describe("I2 — routing gate / no-flash", () => {
 
     // First synchronous paint, before the live query resolves: Splash only.
     expect(screen.queryByRole("heading")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: t("welcome.start") }),
+    ).toBeNull();
     expect(screen.getByText("workout-pal")).toBeInTheDocument();
   });
 });

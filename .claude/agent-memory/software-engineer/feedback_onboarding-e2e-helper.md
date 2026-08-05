@@ -11,8 +11,10 @@ verbatim between spec files. Its gender step uses
 hits "Female" → strict-mode violation, so onboarding never completes.
 
 **Why:** Playwright role-name matching is substring + case-insensitive by
-default; "Male" ⊂ "Female". Confirmed 2026-07-12: `routine-generation.spec.ts`
-currently fails at this exact line.
+default; "Male" ⊂ "Female". Confirmed 2026-07-12 and again 2026-08-04:
+`routine-generation.spec.ts` still fails at this exact line on `main` — it is a
+standing pre-existing red in the `chromium` project, so don't read it as
+breakage from your own change.
 
 **How to apply:** In any new e2e spec, use
 `getByRole("radio", { name: "Male", exact: true })`. Copying the helper as-is

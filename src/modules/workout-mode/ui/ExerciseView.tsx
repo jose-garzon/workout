@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import { Input } from "@/shared/ui/primitives/Input";
 import type { SeriesView, WorkoutSessionApi } from "../logic/useWorkoutSession";
@@ -34,6 +35,7 @@ function repsRangeLabel(repsPerSet: number[]): string {
  * 375×667; see `SetsProgress`'s own comment for the rest of that budget).
  */
 export function ExerciseView({ session }: ExerciseViewProps) {
+  const { t } = useTranslation();
   const {
     currentExercise,
     unit,
@@ -57,12 +59,17 @@ export function ExerciseView({ session }: ExerciseViewProps) {
     <div className="flex flex-1 flex-col gap-[var(--space-6)]">
       <div className="flex flex-col gap-[var(--space-1)]">
         <p className="text-micro text-text-muted">
-          Exercise {currentExercise.index + 1} of {currentExercise.total}
+          {t("workout.exercise.counter", {
+            current: currentExercise.index + 1,
+            total: currentExercise.total,
+          })}
         </p>
         <h2 className="text-title-1">{currentExercise.name}</h2>
         <p className="text-body text-text-muted">
-          {currentExercise.plannedSeries} series ·{" "}
-          {repsRangeLabel(currentExercise.repsPerSet)} reps
+          {t("workout.overview.seriesReps", {
+            series: currentExercise.plannedSeries,
+            reps: repsRangeLabel(currentExercise.repsPerSet),
+          })}
         </p>
       </div>
 
@@ -106,11 +113,14 @@ export function ExerciseView({ session }: ExerciseViewProps) {
             guidance, tighter copy, ~20px less height in the vertical-fit
             budget. */}
         <p className="text-caption text-text-muted">
-          Dumbbells: add both together. Barbell: include the bar.
+          {t("workout.exercise.equipmentHint")}
         </p>
         {previousWeight != null && (
           <p className="text-caption text-text-muted">
-            Last time: {previousWeight} {unitLabel}
+            {t("workout.exercise.lastTime", {
+              weight: previousWeight,
+              unit: unitLabel,
+            })}
           </p>
         )}
       </div>
@@ -143,7 +153,7 @@ export function ExerciseView({ session }: ExerciseViewProps) {
       >
         {timer.phase === "exercise-complete" && (
           <Button size="lg" fullWidth onClick={() => void nextExercise()}>
-            Next exercise
+            {t("workout.exercise.nextButton")}
           </Button>
         )}
       </div>
@@ -203,6 +213,7 @@ function SetsProgress({
   plannedSeries: number;
   unitLabel: string;
 }) {
+  const { t } = useTranslation();
   const cellRefs = useRef<Array<HTMLLIElement | null>>([]);
   const isScrollable = plannedSeries > MAX_VISIBLE_SET_CELLS;
 
@@ -222,10 +233,13 @@ function SetsProgress({
         data-testid="sets-progress-counter"
         className="text-caption text-text-muted tabular-nums"
       >
-        Set {currentSeries} of {plannedSeries}
+        {t("workout.set.counter", {
+          current: currentSeries,
+          total: plannedSeries,
+        })}
       </p>
       <ul
-        aria-label="Sets progress"
+        aria-label={t("workout.exercise.setsProgressLabel")}
         data-testid="sets-progress-row"
         className={`anim-scroll-smooth flex h-[var(--space-9)] snap-x snap-mandatory gap-[var(--space-1)] ${
           isScrollable ? "overflow-x-auto" : "overflow-hidden"
@@ -243,8 +257,17 @@ function SetsProgress({
               }}
               aria-label={
                 set
-                  ? `Set ${setNumber}: ${set.reps} reps at ${set.weight} ${unitLabel}, ${formatClock(set.workSeconds)}, ${set.volume} ${unitLabel} volume`
-                  : `Set ${setNumber}: not completed yet`
+                  ? t("workout.exercise.setCell.completed", {
+                      number: setNumber,
+                      reps: set.reps,
+                      weight: set.weight,
+                      unit: unitLabel,
+                      time: formatClock(set.workSeconds),
+                      volume: set.volume,
+                    })
+                  : t("workout.exercise.setCell.pending", {
+                      number: setNumber,
+                    })
               }
               className={[
                 "flex snap-start flex-col items-center justify-center gap-[var(--space-1)] border border-border px-[var(--space-1)]",
@@ -293,6 +316,7 @@ function RepsField({
   setReps: (value: number | null) => void;
   disabled: boolean;
 }) {
+  const { t } = useTranslation();
   const commit = (value: string) => {
     const trimmed = value.trim();
     if (trimmed === "") {
@@ -305,7 +329,7 @@ function RepsField({
 
   return (
     <Input
-      label="Reps"
+      label={t("workout.exercise.repsLabel")}
       type="number"
       size="lg"
       required
@@ -327,6 +351,7 @@ function WeightField({
   setWeight: (value: number | null) => void;
   disabled: boolean;
 }) {
+  const { t } = useTranslation();
   const [text, setText] = useState(weight != null ? String(weight) : "");
 
   const commit = (value: string) => {
@@ -342,7 +367,7 @@ function WeightField({
 
   return (
     <Input
-      label="Weight for this set"
+      label={t("workout.exercise.weightLabel")}
       type="number"
       size="lg"
       required

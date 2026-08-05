@@ -1,9 +1,15 @@
 /**
  * calendar aggregation (design.md §3) — pure, no I/O, unit-testable. Every
  * bucketing is LOCAL time (never UTC) so "trained Saturday night" lands on
- * Saturday. Imports only `../types`.
+ * Saturday.
+ *
+ * Day and month NAMES come from the dictionary, not `Intl` (i18n-spanish-support
+ * §Decision 6): one deterministic source of truth for copy, with the casing the
+ * design system asks for (`Lun`, `Julio` — not CLDR's lowercase). This module is
+ * not React, so it calls `t` directly, per label, at call time.
  */
 
+import { t } from "@/shared/i18n";
 import type {
   CompletedRef,
   WeeklyProgress,
@@ -11,21 +17,31 @@ import type {
   YearGridDay,
 } from "../types";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS_FULL = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+/** Indexed by `Date#getDay()` — Sunday is 0. */
+const WEEKDAY_KEYS = [
+  "calendar.weekday.sun",
+  "calendar.weekday.mon",
+  "calendar.weekday.tue",
+  "calendar.weekday.wed",
+  "calendar.weekday.thu",
+  "calendar.weekday.fri",
+  "calendar.weekday.sat",
+] as const;
+
+const MONTH_KEYS = [
+  "calendar.month.january",
+  "calendar.month.february",
+  "calendar.month.march",
+  "calendar.month.april",
+  "calendar.month.may",
+  "calendar.month.june",
+  "calendar.month.july",
+  "calendar.month.august",
+  "calendar.month.september",
+  "calendar.month.october",
+  "calendar.month.november",
+  "calendar.month.december",
+] as const;
 
 /** Local calendar day of `ms` as `yyyy-mm-dd`. */
 export function localDayKey(ms: number): string {
@@ -44,17 +60,17 @@ export function startOfWeek(date: Date): Date {
   return d;
 }
 
-/** A `yyyy-mm-dd` key rendered as "Sat 11" — weekday abbrev + day-of-month (local). */
+/** A `yyyy-mm-dd` key rendered as "Sat 11" / "Sáb 11" — weekday + day-of-month. */
 export function dayLabel(dayKey: string): string {
   const [y, m, d] = dayKey.split("-").map(Number);
   const date = new Date(y, m - 1, d);
-  return `${WEEKDAYS[date.getDay()]} ${d}`;
+  return `${t(WEEKDAY_KEYS[date.getDay()])} ${d}`;
 }
 
-/** Full month name (e.g. "July") for a `yyyy-mm-dd` key (local). */
+/** Full month name ("July" / "Julio") for a `yyyy-mm-dd` key (local). */
 export function monthName(dayKey: string): string {
   const m = Number(dayKey.split("-")[1]);
-  return MONTHS_FULL[m - 1];
+  return t(MONTH_KEYS[m - 1]);
 }
 
 /** Most-recent ref per local day (max `completedAt`). */

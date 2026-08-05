@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslation } from "@/shared/i18n";
+
 export interface StepperProps {
   /** 1-based current step. */
   current: number;
@@ -16,6 +20,7 @@ export interface StepperProps {
  * segment here uses plain `text` ink instead of a second yellow block.
  */
 export function Stepper({ current, total, label }: StepperProps) {
+  const { t } = useTranslation();
   const steps = Array.from({ length: total }, (_, i) => i);
 
   return (
@@ -30,9 +35,12 @@ export function Stepper({ current, total, label }: StepperProps) {
       </div>
       {/* The visible text below is the accessible name — no extra ARIA
           wrapper needed on the group; the decorative bar above is the only
-          part that's aria-hidden. */}
+          part that's aria-hidden. Reuses `onboarding.step.indicator` — its
+          only caller today is the onboarding flow, and the key's meaning
+          ("Step {current} of {total}") is this primitive's, not a
+          feature's; a second key with identical copy would just drift. */}
       <p className="text-micro text-text-muted">
-        Step {current} of {total}
+        {t("onboarding.step.indicator", { current, total })}
         {label ? ` · ${label}` : ""}
       </p>
     </div>

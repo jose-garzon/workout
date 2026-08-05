@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { type TranslationKey, useTranslation } from "@/shared/i18n";
 import type { TimerPhase, TimerView } from "../logic/useWorkoutSession";
 
 export interface StopwatchProps {
@@ -50,11 +51,11 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 type ActivePhase = Exclude<TimerPhase, "exercise-complete">;
 
-const PHASE_LABEL: Record<ActivePhase, string> = {
-  ready: "Ready",
-  work: "Work",
-  rest: "Rest",
-  overtime: "Overtime",
+const PHASE_LABEL_KEYS: Record<ActivePhase, TranslationKey> = {
+  ready: "workout.stopwatch.phase.ready",
+  work: "workout.stopwatch.phase.work",
+  rest: "workout.stopwatch.phase.rest",
+  overtime: "workout.stopwatch.phase.overtime",
 };
 
 /** `ready` is calm and still (no pulse until `work`, §D12); its fill depends on
@@ -78,12 +79,12 @@ function phaseClasses(phase: ActivePhase, canStartSet: boolean): string {
 /** design-system.md §2 "Accessibility" — announce state TRANSITIONS only,
  * never the countdown itself ("Rest started"/"Rest complete" are the doc's
  * own literal examples). */
-const ANNOUNCEMENT: Record<TimerPhase, string> = {
-  ready: "Ready to start",
-  work: "Set started",
-  rest: "Rest started",
-  overtime: "Rest complete",
-  "exercise-complete": "Exercise complete",
+const ANNOUNCEMENT_KEYS: Record<TimerPhase, TranslationKey> = {
+  ready: "workout.stopwatch.announce.ready",
+  work: "workout.stopwatch.announce.work",
+  rest: "workout.stopwatch.announce.rest",
+  overtime: "workout.stopwatch.announce.overtime",
+  "exercise-complete": "workout.stopwatch.announce.exerciseComplete",
 };
 
 /** Exported so `ExerciseView`'s per-set progress list formats a set's
@@ -96,31 +97,51 @@ export function formatClock(totalSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function stopwatchLabel(timer: TimerView, canStartSet: boolean): string {
+function stopwatchLabel(
+  timer: TimerView,
+  canStartSet: boolean,
+  t: ReturnType<typeof useTranslation>["t"],
+): string {
   switch (timer.phase) {
     case "ready":
       return canStartSet
-        ? `Set ${timer.currentSeries} of ${timer.plannedSeries}. Tap to start the set.`
-        : `Enter a weight to start set ${timer.currentSeries} of ${timer.plannedSeries}.`;
+        ? t("workout.stopwatch.label.readyCanStart", {
+            current: timer.currentSeries,
+            total: timer.plannedSeries,
+          })
+        : t("workout.stopwatch.label.readyBlocked", {
+            current: timer.currentSeries,
+            total: timer.plannedSeries,
+          });
     case "work":
-      return `Set ${timer.currentSeries} of ${timer.plannedSeries}. ${formatClock(timer.displaySeconds)} elapsed. Tap to end the set.`;
+      return t("workout.stopwatch.label.work", {
+        current: timer.currentSeries,
+        total: timer.plannedSeries,
+        elapsed: formatClock(timer.displaySeconds),
+      });
     case "rest":
-      return `Resting. ${formatClock(timer.displaySeconds)} remaining. Tap to start the next set.`;
+      return t("workout.stopwatch.label.rest", {
+        remaining: formatClock(timer.displaySeconds),
+      });
     case "overtime":
-      return `Rest is over by ${formatClock(timer.overtimeSeconds)}. Tap to start the next set.`;
+      return t("workout.stopwatch.label.overtime", {
+        overtime: formatClock(timer.overtimeSeconds),
+      });
     default:
       return "";
   }
 }
 
 function usePhaseAnnouncement(phase: TimerPhase): string {
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const lastPhase = useRef<TimerPhase | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `t` is a module-level function, referentially stable forever (design §Decision 2) — omitting it from deps is intentional, matching every other seam-hook in this codebase.
   useEffect(() => {
     if (lastPhase.current !== phase) {
       lastPhase.current = phase;
-      setMessage(ANNOUNCEMENT[phase]);
+      setMessage(t(ANNOUNCEMENT_KEYS[phase]));
     }
   }, [phase]);
 
@@ -130,6 +151,7 @@ function usePhaseAnnouncement(phase: TimerPhase): string {
 const CIRCLE_SIZE = "clamp(11.25rem, 55vw, 16rem)"; // 180px – 256px
 
 export function Stopwatch({ timer, tap, canStartSet }: StopwatchProps) {
+  const { t } = useTranslation();
   const announcement = usePhaseAnnouncement(timer.phase);
 
   // A fixed-height message slot below the circle, ALWAYS rendered, so no phase's
@@ -137,11 +159,11 @@ export function Stopwatch({ timer, tap, canStartSet }: StopwatchProps) {
   const message =
     timer.phase === "overtime" ? (
       <p className="text-body-strong text-warning-text text-center">
-        Time's up — let's keep going.
+        {t("workout.stopwatch.message.overtime")}
       </p>
     ) : timer.phase === "ready" && !canStartSet ? (
       <p className="text-caption text-text-muted text-center">
-        Enter a weight to start.
+        {t("workout.stopwatch.message.enterWeight")}
       </p>
     ) : null;
 
@@ -167,7 +189,9 @@ export function Stopwatch({ timer, tap, canStartSet }: StopwatchProps) {
           className="flex flex-col items-center justify-center gap-[var(--space-2)] border border-border bg-surface text-text"
         >
           <CheckIcon />
-          <span className="text-title-3">Exercise complete</span>
+          <span className="text-title-3">
+            {t("workout.stopwatch.announce.exerciseComplete")}
+          </span>
         </div>
         {messageSlot}
       </div>
@@ -196,7 +220,7 @@ export function Stopwatch({ timer, tap, canStartSet }: StopwatchProps) {
         type="button"
         onClick={() => void tap()}
         disabled={startDisabled}
-        aria-label={stopwatchLabel(timer, canStartSet)}
+        aria-label={stopwatchLabel(timer, canStartSet, t)}
         style={{ width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: "50%" }}
         className={`relative isolate flex select-none items-center justify-center ${phaseClasses(timer.phase, canStartSet)}`}
       >
@@ -229,10 +253,13 @@ export function Stopwatch({ timer, tap, canStartSet }: StopwatchProps) {
           </svg>
         )}
         <span className="relative flex flex-col items-center gap-[var(--space-1)]">
-          <span className="text-micro">{PHASE_LABEL[timer.phase]}</span>
+          <span className="text-micro">{t(PHASE_LABEL_KEYS[timer.phase])}</span>
           <span className="text-display">{digits}</span>
           <span className="text-micro">
-            Set {timer.currentSeries} of {timer.plannedSeries}
+            {t("workout.set.counter", {
+              current: timer.currentSeries,
+              total: timer.plannedSeries,
+            })}
           </span>
         </span>
       </button>

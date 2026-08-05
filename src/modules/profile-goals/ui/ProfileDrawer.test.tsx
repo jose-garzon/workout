@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { t } from "@/shared/i18n";
 import type { Goals, Profile } from "../types";
 import { ProfileDrawer } from "./ProfileDrawer";
 
@@ -64,7 +65,7 @@ function Harness({ initialOpen = false }: { initialOpen?: boolean } = {}) {
 }
 
 function dialog() {
-  return screen.getByRole("dialog", { name: "Edit your data" });
+  return screen.getByRole("dialog", { name: t("profile.edit.title") });
 }
 
 /**
@@ -92,20 +93,32 @@ describe("ProfileDrawer — layout + prefill", () => {
     const d = dialog();
 
     expect(d.querySelector("#your-name")).toHaveValue("Alex");
-    expect(screen.getByRole("radio", { name: "Male" })).toBeChecked();
-    expect(screen.getByLabelText("Age", { exact: false })).toHaveValue("28");
-    expect(screen.getByRole("radio", { name: "Metric" })).toBeChecked();
     expect(
-      screen.getByLabelText("Bodyweight (kg)", { exact: false }),
+      screen.getByRole("radio", { name: t("onboarding.gender.male") }),
+    ).toBeChecked();
+    expect(
+      screen.getByLabelText(t("onboarding.field.age"), { exact: false }),
+    ).toHaveValue("28");
+    expect(
+      screen.getByRole("radio", { name: t("onboarding.unit.metric") }),
+    ).toBeChecked();
+    expect(
+      screen.getByLabelText(t("onboarding.field.bodyweight", { unit: "kg" }), {
+        exact: false,
+      }),
     ).toHaveValue("80");
-    expect(screen.getByRole("radio", { name: "Strength" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: t("onboarding.focus.strength") }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: t("profile.edit.save") }),
+    ).toBeInTheDocument();
   });
 
   it("lays out daysPerWeek as a two-column radiogroup of 1..7", () => {
     render(<Harness initialOpen />);
     const days = screen.getByRole("radiogroup", {
-      name: "Training days per week",
+      name: t("onboarding.field.daysPerWeek"),
     });
     expect(days.className).toContain("grid-cols-2");
     for (const n of ["1", "2", "3", "4", "5", "6", "7"]) {
@@ -119,32 +132,46 @@ describe("ProfileDrawer — editing + save", () => {
   it("blocks save on invalid input, surfaces the error, and stays open", async () => {
     render(<Harness initialOpen />);
     fireEvent.change(
-      screen.getByLabelText("Bodyweight (kg)", { exact: false }),
+      screen.getByLabelText(t("onboarding.field.bodyweight", { unit: "kg" }), {
+        exact: false,
+      }),
       { target: { value: "" } },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("profile.edit.save") }),
+    );
 
-    expect(await screen.findByText(/enter your bodyweight/i)).toBeVisible();
+    expect(
+      await screen.findByText(t("onboarding.error.bodyweight.required")),
+    ).toBeVisible();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("moves focus to the first invalid field on a blocked save", async () => {
     render(<Harness initialOpen />);
-    const bodyweight = screen.getByLabelText("Bodyweight (kg)", {
-      exact: false,
-    });
+    const bodyweight = screen.getByLabelText(
+      t("onboarding.field.bodyweight", { unit: "kg" }),
+      { exact: false },
+    );
     fireEvent.change(bodyweight, { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("profile.edit.save") }),
+    );
 
     await waitFor(() => expect(bodyweight).toHaveFocus());
   });
 
   it("a valid Save closes the drawer", async () => {
     render(<Harness initialOpen />);
-    fireEvent.change(screen.getByLabelText("Your name", { exact: false }), {
-      target: { value: "Sam" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.change(
+      screen.getByLabelText(t("onboarding.field.displayName"), {
+        exact: false,
+      }),
+      { target: { value: "Sam" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: t("profile.edit.save") }),
+    );
 
     await waitForClose();
   });
@@ -153,7 +180,9 @@ describe("ProfileDrawer — editing + save", () => {
 describe("ProfileDrawer — discard affordances", () => {
   it("the X button closes the drawer", async () => {
     render(<Harness initialOpen />);
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("profile.edit.close") }),
+    );
     await waitForClose();
   });
 
@@ -188,16 +217,21 @@ describe("ProfileDrawer — discard affordances", () => {
   it("reopening after a discard shows saved values, not the discarded edit", async () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));
-    fireEvent.change(screen.getByLabelText("Your name", { exact: false }), {
-      target: { value: "Temp" },
-    });
+    fireEvent.change(
+      screen.getByLabelText(t("onboarding.field.displayName"), {
+        exact: false,
+      }),
+      { target: { value: "Temp" } },
+    );
     fireEvent.keyDown(document, { key: "Escape" });
     await waitForClose();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));
-    expect(screen.getByLabelText("Your name", { exact: false })).toHaveValue(
-      "Alex",
-    );
+    expect(
+      screen.getByLabelText(t("onboarding.field.displayName"), {
+        exact: false,
+      }),
+    ).toHaveValue("Alex");
   });
 });
 
@@ -208,7 +242,9 @@ describe("ProfileDrawer — focus", () => {
     trigger.focus();
     fireEvent.click(trigger);
 
-    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: t("profile.edit.close") }),
+    ).toHaveFocus();
 
     fireEvent.keyDown(document, { key: "Escape" });
     await waitForClose();
@@ -217,8 +253,12 @@ describe("ProfileDrawer — focus", () => {
 
   it("traps Tab within the panel (Close is first, Save is last)", () => {
     render(<Harness initialOpen />);
-    const closeButton = screen.getByRole("button", { name: "Close" });
-    const saveButton = screen.getByRole("button", { name: "Save" });
+    const closeButton = screen.getByRole("button", {
+      name: t("profile.edit.close"),
+    });
+    const saveButton = screen.getByRole("button", {
+      name: t("profile.edit.save"),
+    });
 
     saveButton.focus();
     fireEvent.keyDown(document, { key: "Tab" });

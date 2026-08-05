@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { Logo } from "@/shared/ui/components/Logo";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
@@ -39,6 +40,7 @@ export function WelcomeFlow() {
 }
 
 function IntroPanel({ onStart }: { onStart: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-1 flex-col justify-between gap-[var(--space-8)]">
       <div className="flex flex-1 flex-col items-center justify-center gap-[var(--space-7)]">
@@ -49,16 +51,15 @@ function IntroPanel({ onStart }: { onStart: () => void }) {
         <Logo size="lg" />
         <div className="flex flex-col gap-[var(--space-3)]">
           <p className="text-title-2 text-center text-text">
-            Train harder. Track everything.
+            {t("welcome.tagline")}
           </p>
           <p className="text-body text-center text-text-muted">
-            No account, no cloud — every set, rep, and PR stays right here on
-            your phone.
+            {t("welcome.description")}
           </p>
         </div>
       </div>
       <Button size="lg" fullWidth onClick={onStart}>
-        Start
+        {t("welcome.start")}
       </Button>
     </div>
   );

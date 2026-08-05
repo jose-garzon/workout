@@ -6,6 +6,11 @@ import { defineConfig, devices } from "@playwright/test";
  * data screens usable with no network; generation shows the offline error —
  * tasks 7.2 / 7.3). The offline specs first warm the service-worker cache
  * online, then go offline, so they live in the offline project only.
+ *
+ * A third `spanish` project runs the Story-4 i18n spec under `locale: "es-ES"`
+ * (i18n-spanish-support design.md §Decision 7). It owns `i18n-spanish.spec.ts`
+ * exclusively — `chromium` ignores that file, since its assertions are Spanish
+ * and only hold when the browser's preferred language is `es-*`.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -27,13 +32,18 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /.*\.offline\.spec\.ts/,
+      testIgnore: [/.*\.offline\.spec\.ts/, /i18n-spanish\.spec\.ts/],
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "offline",
       testMatch: /.*\.offline\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "spanish",
+      testMatch: /i18n-spanish\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], locale: "es-ES" },
     },
   ],
 });

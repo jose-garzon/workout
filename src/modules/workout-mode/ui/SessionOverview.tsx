@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import { Input } from "@/shared/ui/primitives/Input";
 import type { WorkoutSessionApi } from "../logic/useWorkoutSession";
@@ -18,6 +19,7 @@ export interface SessionOverviewProps {
  * through to the seam, there's no separate "save" step.
  */
 export function SessionOverview({ session }: SessionOverviewProps) {
+  const { t } = useTranslation();
   const {
     dayName,
     exercises,
@@ -48,8 +50,10 @@ export function SessionOverview({ session }: SessionOverviewProps) {
         <h2 className="text-title-1">{dayName}</h2>
         <p className="text-body text-text-muted">
           {exercises.length === 1
-            ? "1 exercise"
-            : `${exercises.length} exercises`}
+            ? t("routine.summary.exercises.one")
+            : t("routine.summary.exercises.other", {
+                count: exercises.length,
+              })}
         </p>
       </div>
 
@@ -74,7 +78,10 @@ export function SessionOverview({ session }: SessionOverviewProps) {
               <span className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)]">
                 <span className="text-title-3">{exercise.name}</span>
                 <span className="text-caption text-text-muted">
-                  {exercise.plannedSeries} series · {exercise.plannedReps} reps
+                  {t("workout.overview.seriesReps", {
+                    series: exercise.plannedSeries,
+                    reps: exercise.plannedReps,
+                  })}
                 </span>
               </span>
             </li>
@@ -84,14 +91,16 @@ export function SessionOverview({ session }: SessionOverviewProps) {
 
       <div className="flex flex-col gap-[var(--space-5)]">
         <Input
-          label="Rest between sets"
+          label={t("workout.overview.restLabel")}
           type="number"
           value={restText}
           onChange={handleRestChange}
-          suffix="sec"
+          suffix={t("workout.overview.restSuffix")}
         />
         <Button size="lg" fullWidth onClick={handleStart} disabled={starting}>
-          {starting ? "Starting…" : "Start"}
+          {starting
+            ? t("workout.overview.starting")
+            : t("workout.overview.start")}
         </Button>
       </div>
     </div>

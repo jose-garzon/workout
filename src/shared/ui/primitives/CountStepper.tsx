@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslation } from "@/shared/i18n";
+
 export interface CountStepperOption {
   value: string;
   label: string;
@@ -34,6 +36,7 @@ export function CountStepper({
   error,
   required = false,
 }: CountStepperProps) {
+  const { t } = useTranslation();
   const groupId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   const labelId = `${groupId}-label`;
   const errorId = error ? `${groupId}-error` : undefined;
@@ -71,7 +74,7 @@ export function CountStepper({
       >
         <button
           type="button"
-          aria-label={`Decrease ${label}`}
+          aria-label={t("common.stepper.decrease", { label })}
           disabled={index !== -1 && atMin}
           onClick={() => step(-1)}
           className="anim-press text-title-2 flex w-[var(--control-height-lg)] items-center justify-center text-text disabled:pointer-events-none disabled:opacity-30"
@@ -87,7 +90,7 @@ export function CountStepper({
         </span>
         <button
           type="button"
-          aria-label={`Increase ${label}`}
+          aria-label={t("common.stepper.increase", { label })}
           disabled={index !== -1 && atMax}
           onClick={() => step(1)}
           className="anim-press text-title-2 flex w-[var(--control-height-lg)] items-center justify-center text-text disabled:pointer-events-none disabled:opacity-30"

@@ -2,6 +2,7 @@
 
 import type { MouseEvent, TouchEvent as ReactTouchEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import { ChoiceGroup } from "@/shared/ui/primitives/ChoiceGroup";
 import { Input } from "@/shared/ui/primitives/Input";
@@ -165,6 +166,7 @@ export function ProfileDrawer({
   profile,
   goals,
 }: ProfileDrawerProps) {
+  const { t } = useTranslation();
   const editor = useProfileEditor(profile, goals);
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
@@ -356,13 +358,13 @@ export function ProfileDrawer({
       >
         <div className="flex shrink-0 items-center justify-between gap-[var(--space-4)]">
           <h2 id="profile-drawer-title" className="text-title-1">
-            Edit your data
+            {t("profile.edit.title")}
           </h2>
           <button
             ref={closeButtonRef}
             type="button"
             onClick={dismiss}
-            aria-label="Close"
+            aria-label={t("profile.edit.close")}
             className="anim-press flex h-[var(--tap-target-min)] w-[var(--tap-target-min)] shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text"
           >
             <CloseIcon />
@@ -385,13 +387,15 @@ export function ProfileDrawer({
 
         {editor.phase === "error" && editor.saveError && (
           <p role="alert" className="text-caption text-danger-text">
-            Couldn't save your details. Tap Save to try again.
+            {t("profile.edit.error")}
           </p>
         )}
 
         <div className="flex flex-1 flex-col justify-end gap-[var(--space-5)]">
           <Button size="lg" fullWidth onClick={() => void handleSave()}>
-            {editor.phase === "saving" ? "Saving…" : "Save"}
+            {editor.phase === "saving"
+              ? t("profile.edit.saving")
+              : t("profile.edit.save")}
           </Button>
         </div>
       </div>

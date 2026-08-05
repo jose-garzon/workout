@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { t } from "@/shared/i18n";
 import type {
   CurrentExerciseView,
   SeriesView,
@@ -141,8 +142,12 @@ describe("WorkoutModeBody — status routing (mocked seam)", () => {
     mockUseWorkoutSession.mockReturnValue(fakeApi({ status: "no-routine" }));
     render(<WorkoutModeBody dayId="day-1" />);
 
-    expect(screen.getByText("No workout to start here")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Back to home" }));
+    expect(
+      screen.getByText(t("workout.noRoutine.heading")),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: t("workout.backHome") }),
+    );
     expect(pushMock).toHaveBeenCalledWith("/");
   });
 
@@ -157,7 +162,9 @@ describe("WorkoutModeBody — status routing (mocked seam)", () => {
       screen.getByRole("heading", { name: "Push Day" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Bench Press")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("workout.overview.start") }),
+    );
     expect(start).toHaveBeenCalledTimes(1);
   });
 
@@ -177,7 +184,7 @@ describe("WorkoutModeBody — status routing (mocked seam)", () => {
     render(<WorkoutModeBody dayId="day-1" />);
 
     expect(
-      screen.getByRole("heading", { name: "Workout complete" }),
+      screen.getByRole("heading", { name: t("workout.success.heading") }),
     ).toBeInTheDocument();
   });
 
@@ -187,10 +194,10 @@ describe("WorkoutModeBody — status routing (mocked seam)", () => {
     });
     render(<WorkoutModeBody dayId="day-1" />);
 
-    expect(
-      screen.getByText("This workout couldn't be loaded"),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Back to home" }));
+    expect(screen.getByText(t("workout.error.heading"))).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: t("workout.backHome") }),
+    );
     expect(pushMock).toHaveBeenCalledWith("/");
   });
 });
@@ -202,9 +209,15 @@ describe("SessionOverview", () => {
 
     expect(screen.getByText("Bench Press")).toBeInTheDocument();
     expect(screen.getByText("Overhead Press")).toBeInTheDocument();
-    expect(screen.getByText("4 series · 8 reps")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        t("workout.overview.seriesReps", { series: 4, reps: 8 }),
+      ),
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("workout.overview.start") }),
+    );
     expect(start).toHaveBeenCalledTimes(1);
   });
 
@@ -217,7 +230,7 @@ describe("SessionOverview", () => {
     );
 
     const field = screen.getByLabelText(
-      "Rest between sets",
+      t("workout.overview.restLabel"),
     ) as HTMLInputElement;
     expect(field.value).toBe("90");
 
@@ -241,7 +254,9 @@ describe("ExerciseView — weight field + previous weight", () => {
     );
 
     fireEvent.change(
-      screen.getByLabelText("Weight for this set", { exact: false }),
+      screen.getByLabelText(t("workout.exercise.weightLabel"), {
+        exact: false,
+      }),
       {
         target: { value: "62.5" },
       },
@@ -260,7 +275,9 @@ describe("ExerciseView — weight field + previous weight", () => {
       />,
     );
     expect(
-      screen.getByLabelText("Weight for this set", { exact: false }),
+      screen.getByLabelText(t("workout.exercise.weightLabel"), {
+        exact: false,
+      }),
     ).not.toBeDisabled();
 
     for (const timer of [WORK_TIMER, REST_TIMER, OVERTIME_TIMER]) {
@@ -274,7 +291,9 @@ describe("ExerciseView — weight field + previous weight", () => {
         />,
       );
       expect(
-        screen.getByLabelText("Weight for this set", { exact: false }),
+        screen.getByLabelText(t("workout.exercise.weightLabel"), {
+          exact: false,
+        }),
       ).toBeDisabled();
     }
 
@@ -288,7 +307,9 @@ describe("ExerciseView — weight field + previous weight", () => {
       />,
     );
     expect(
-      screen.getByLabelText("Weight for this set", { exact: false }),
+      screen.getByLabelText(t("workout.exercise.weightLabel"), {
+        exact: false,
+      }),
     ).not.toBeDisabled();
   });
 
@@ -314,7 +335,11 @@ describe("ExerciseView — weight field + previous weight", () => {
         })}
       />,
     );
-    expect(screen.getByText("Last time: 60 kg")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        t("workout.exercise.lastTime", { weight: 60, unit: "kg" }),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders the unit label from the seam, never converting itself", () => {
@@ -346,7 +371,7 @@ describe("ExerciseView — reps field (progressive-overload default)", () => {
       />,
     );
 
-    const field = screen.getByLabelText("Reps", {
+    const field = screen.getByLabelText(t("workout.exercise.repsLabel"), {
       exact: false,
     }) as HTMLInputElement;
     expect(field.value).toBe("10");
@@ -366,7 +391,9 @@ describe("ExerciseView — reps field (progressive-overload default)", () => {
         })}
       />,
     );
-    expect(screen.getByLabelText("Reps", { exact: false })).toBeDisabled();
+    expect(
+      screen.getByLabelText(t("workout.exercise.repsLabel"), { exact: false }),
+    ).toBeDisabled();
   });
 });
 
@@ -384,7 +411,7 @@ describe("ExerciseView — Next exercise control", () => {
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "Next exercise" }),
+      screen.queryByRole("button", { name: t("workout.exercise.nextButton") }),
     ).not.toBeInTheDocument();
 
     rerender(
@@ -397,7 +424,9 @@ describe("ExerciseView — Next exercise control", () => {
         })}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Next exercise" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: t("workout.exercise.nextButton") }),
+    );
     expect(nextExercise).toHaveBeenCalledTimes(1);
   });
 
@@ -450,7 +479,7 @@ describe("ExerciseView — per-set progress grid (revised D1: §9.7 redesign)", 
     );
 
     expect(screen.getByTestId("sets-progress-counter")).toHaveTextContent(
-      "Set 2 of 4",
+      t("workout.set.counter", { current: 2, total: 4 }),
     );
     const row = screen.getByTestId("sets-progress-row");
     const cells = within(row).getAllByRole("listitem");
@@ -459,10 +488,14 @@ describe("ExerciseView — per-set progress grid (revised D1: §9.7 redesign)", 
       expect(cell.className).not.toContain("bg-accent");
     }
     expect(
-      screen.getByLabelText("Set 1: not completed yet"),
+      screen.getByLabelText(
+        t("workout.exercise.setCell.pending", { number: 1 }),
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Set 4: not completed yet"),
+      screen.getByLabelText(
+        t("workout.exercise.setCell.pending", { number: 4 }),
+      ),
     ).toBeInTheDocument();
   });
 
@@ -479,7 +512,14 @@ describe("ExerciseView — per-set progress grid (revised D1: §9.7 redesign)", 
     );
 
     const set1 = screen.getByLabelText(
-      "Set 1: 8 reps at 80 kg, 0:42, 640 kg volume",
+      t("workout.exercise.setCell.completed", {
+        number: 1,
+        reps: 8,
+        weight: 80,
+        unit: "kg",
+        time: "0:42",
+        volume: 640,
+      }),
     );
     expect(set1.className).toContain("bg-accent");
     expect(set1.className).toContain("text-on-accent");
@@ -490,12 +530,21 @@ describe("ExerciseView — per-set progress grid (revised D1: §9.7 redesign)", 
     expect(within(set1).getByText("640kg")).toBeInTheDocument();
 
     const set2 = screen.getByLabelText(
-      "Set 2: 8 reps at 82.5 kg, 0:39, 660 kg volume",
+      t("workout.exercise.setCell.completed", {
+        number: 2,
+        reps: 8,
+        weight: 82.5,
+        unit: "kg",
+        time: "0:39",
+        volume: 660,
+      }),
     );
     expect(set2.className).toContain("bg-accent");
 
     // Not reached yet — still a placeholder, not accidentally filled.
-    const set3 = screen.getByLabelText("Set 3: not completed yet");
+    const set3 = screen.getByLabelText(
+      t("workout.exercise.setCell.pending", { number: 3 }),
+    );
     expect(set3.className).not.toContain("bg-accent");
   });
 
@@ -515,7 +564,14 @@ describe("ExerciseView — per-set progress grid (revised D1: §9.7 redesign)", 
     );
 
     const set1 = screen.getByLabelText(
-      "Set 1: 5 reps at 135 lb, 0:30, 675 lb volume",
+      t("workout.exercise.setCell.completed", {
+        number: 1,
+        reps: 5,
+        weight: 135,
+        unit: "lb",
+        time: "0:30",
+        volume: 675,
+      }),
     );
     expect(within(set1).getByText("5×135lb")).toBeInTheDocument();
     expect(within(set1).getByText("675lb")).toBeInTheDocument();
@@ -611,7 +667,9 @@ describe("Stopwatch — renders each timer.phase and drives tap", () => {
     render(<Stopwatch timer={WORK_TIMER} tap={tap} canStartSet={true} />);
 
     expect(screen.getByText("0:45")).toBeInTheDocument();
-    expect(screen.getByText("Work")).toBeInTheDocument();
+    expect(
+      screen.getByText(t("workout.stopwatch.phase.work")),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button"));
     expect(tap).toHaveBeenCalledTimes(1);
   });
@@ -619,7 +677,9 @@ describe("Stopwatch — renders each timer.phase and drives tap", () => {
   it("rest: counts remaining time down", () => {
     render(<Stopwatch timer={REST_TIMER} tap={vi.fn()} canStartSet={true} />);
     expect(screen.getByText("1:30")).toBeInTheDocument();
-    expect(screen.getByText("Rest")).toBeInTheDocument();
+    expect(
+      screen.getByText(t("workout.stopwatch.phase.rest")),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Time's up/)).not.toBeInTheDocument();
   });
 
@@ -628,7 +688,9 @@ describe("Stopwatch — renders each timer.phase and drives tap", () => {
       <Stopwatch timer={OVERTIME_TIMER} tap={vi.fn()} canStartSet={true} />,
     );
     expect(screen.getByText("+0:12")).toBeInTheDocument();
-    expect(screen.getByText("Overtime")).toBeInTheDocument();
+    expect(
+      screen.getByText(t("workout.stopwatch.phase.overtime")),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Time's up/)).toBeInTheDocument();
   });
 
@@ -638,7 +700,10 @@ describe("Stopwatch — renders each timer.phase and drives tap", () => {
     );
     // Appears twice on mount: the visible label and the sr-only phase-change
     // announcement (design-system.md §2 "Accessibility" — transitions only).
-    expect(screen.getAllByText("Exercise complete").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(t("workout.stopwatch.announce.exerciseComplete"))
+        .length,
+    ).toBeGreaterThan(0);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
@@ -649,7 +714,7 @@ describe("SuccessView — ratings + back home", () => {
     render(<SuccessView session={fakeApi({ submitRatings })} />);
 
     const difficultyGroup = screen.getByRole("radiogroup", {
-      name: "Difficulty (1–5)",
+      name: t("workout.success.difficulty"),
     });
     fireEvent.click(within(difficultyGroup).getByRole("radio", { name: "3" }));
     expect(submitRatings).toHaveBeenLastCalledWith({
@@ -658,7 +723,7 @@ describe("SuccessView — ratings + back home", () => {
     });
 
     const fatigueGroup = screen.getByRole("radiogroup", {
-      name: "Fatigue (1–5)",
+      name: t("workout.success.fatigue"),
     });
     fireEvent.click(within(fatigueGroup).getByRole("radio", { name: "4" }));
     expect(submitRatings).toHaveBeenLastCalledWith({
@@ -670,7 +735,9 @@ describe("SuccessView — ratings + back home", () => {
   it("the back-home control is always enabled and navigates home", () => {
     render(<SuccessView session={fakeApi()} />);
 
-    const backButton = screen.getByRole("button", { name: "Back to home" });
+    const backButton = screen.getByRole("button", {
+      name: t("workout.backHome"),
+    });
     expect(backButton).toBeEnabled();
     fireEvent.click(backButton);
     expect(pushMock).toHaveBeenCalledWith("/");

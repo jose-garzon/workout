@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/shared/db";
+import { setActiveLanguage, t } from "@/shared/i18n";
 import { getGoals, getProfile } from "../api/profileRepo";
 import type { Goals, Profile } from "../types";
 import { useProfileEditor } from "./useProfileEditor";
@@ -32,6 +33,8 @@ function field(api: ReturnType<typeof useProfileEditor>, name: string) {
 beforeEach(async () => {
   await Promise.all([db.profile.clear(), db.goals.clear()]);
 });
+
+afterEach(() => setActiveLanguage(null));
 
 describe("useProfileEditor — seeding", () => {
   it("seeds all 8 fields from the saved records in display units", () => {
@@ -76,7 +79,19 @@ describe("useProfileEditor — unit toggle converts body values", () => {
     // The shown number is converted (80 kg → 176 lb), not just relabelled.
     expect(field(result.current, "bodyweight").value).toBe("176");
     expect(field(result.current, "height").value).toBe("71"); // 180 cm → in
-    expect(field(result.current, "bodyweight").label).toContain("lb");
+    expect(field(result.current, "bodyweight").label).toBe(
+      t("onboarding.field.bodyweight", { unit: "lb" }),
+    );
+  });
+
+  it("relabels in the active language, unit interpolated (i18n)", () => {
+    setActiveLanguage("es");
+    const { result } = renderHook(() => useProfileEditor(profile, goals));
+
+    expect(field(result.current, "bodyweight").label).toBe(
+      "Peso corporal (kg)",
+    );
+    expect(field(result.current, "displayName").label).toBe("Tu nombre");
   });
 });
 

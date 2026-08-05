@@ -13,9 +13,14 @@ export const metadata: Metadata = {
  * a persisted choice wins; otherwise `prefers-color-scheme` — explicit
  * `light` -> light; dark / no-preference / unavailable -> dark (tie-break).
  *
- * The storage key ("wp.theme") is duplicated as a literal in
- * shared/ui/theme/themeStore.ts (THEME_STORAGE_KEY) — this script can't
- * import a TS module, so keep the two in sync by hand if it ever changes.
+ * The same script also resolves the DOCUMENT LANGUAGE (i18n-spanish-support
+ * design.md §Decision 4) so `<html lang>` is correct before the first paint and
+ * assistive tech pronounces Spanish correctly.
+ *
+ * Two literals here are duplicated in TS modules this script cannot import:
+ * the storage key ("wp.theme") in shared/ui/theme/themeStore.ts
+ * (THEME_STORAGE_KEY), and the `es`-prefix language rule in
+ * shared/i18n/translate.ts (resolveLanguage). Keep each pair in sync by hand.
  */
 const NO_FLASH_THEME_SCRIPT = `
 (function () {
@@ -27,6 +32,8 @@ const NO_FLASH_THEME_SCRIPT = `
           ? 'light'
           : 'dark');
     document.documentElement.dataset.theme = theme;
+    document.documentElement.lang =
+      (navigator.language || 'en').toLowerCase().indexOf('es') === 0 ? 'es' : 'en';
   } catch (e) {
     document.documentElement.dataset.theme = 'dark';
   }

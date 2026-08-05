@@ -1,3 +1,4 @@
+import { activeLanguage } from "@/shared/i18n";
 import type { Routine } from "../../types";
 import { type AiError, aiErrorForStatus } from "./errors";
 import { type RoutinePayload, routineSchema } from "./schema";
@@ -49,6 +50,11 @@ function isOffline(): boolean {
  * The one dispatch to the proxy, shared by build + edit (design.md §B). Surfaces
  * `{ kind: 'offline' }` without a network hit; otherwise returns the streaming
  * `Response` or a specific `AiError`.
+ *
+ * Every body carries the active `language` (i18n-spanish-support §Decision 5) so
+ * the model answers in the UI's language. It is read here, ambiently, rather
+ * than threaded through the hooks — exactly as `navigator.onLine` already is —
+ * which keeps `generate`/`submit` and the UI signatures unchanged.
  */
 async function postToProxy(body: object): Promise<GenerateOutcome> {
   if (isOffline()) {
@@ -58,7 +64,7 @@ async function postToProxy(body: object): Promise<GenerateOutcome> {
     const response = await fetch("/api/generate-routine", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, language: activeLanguage() }),
     });
     if (!response.ok) {
       return { ok: false, error: aiErrorForStatus(response.status) };

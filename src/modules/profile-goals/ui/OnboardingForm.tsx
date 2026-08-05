@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import { ChoiceGroup } from "@/shared/ui/primitives/ChoiceGroup";
 import { CountStepper } from "@/shared/ui/primitives/CountStepper";
@@ -23,6 +24,7 @@ export interface OnboardingFormProps {
  * until valid" — `next()` handles that gating internally and never throws.
  */
 export function OnboardingForm({ onboarding }: OnboardingFormProps) {
+  const { t } = useTranslation();
   const {
     stepIndex,
     stepCount,
@@ -93,7 +95,7 @@ export function OnboardingForm({ onboarding }: OnboardingFormProps) {
 
       {phase === "error" && submitError && (
         <p className="text-caption text-danger-text" role="alert">
-          Couldn't save your details. Tap Finish to try again.
+          {t("onboarding.error.submit")}
         </p>
       )}
 
@@ -104,7 +106,11 @@ export function OnboardingForm({ onboarding }: OnboardingFormProps) {
           onClick={handlePrimary}
           disabled={submitting}
         >
-          {isLastStep ? (submitting ? "Saving…" : "Finish") : "Continue"}
+          {isLastStep
+            ? submitting
+              ? t("onboarding.action.finishing")
+              : t("onboarding.action.finish")
+            : t("onboarding.action.continue")}
         </Button>
         {canGoBack && (
           <Button
@@ -114,7 +120,7 @@ export function OnboardingForm({ onboarding }: OnboardingFormProps) {
             onClick={back}
             disabled={submitting}
           >
-            Back
+            {t("onboarding.action.back")}
           </Button>
         )}
       </div>

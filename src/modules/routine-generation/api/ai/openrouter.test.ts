@@ -93,6 +93,27 @@ describe("handleGenerateRoutine — prompt assembly", () => {
     expect(userMessage).toContain("left knee prefers low-impact");
   });
 
+  it("threads the body's language into the system prompt", async () => {
+    const upstream = captureUpstream();
+
+    await handleGenerateRoutine(request({ ...FULL_BODY, language: "es" }));
+
+    const systemMessage =
+      upstream.get()?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(systemMessage).toContain("Spanish");
+  });
+
+  it("defaults to English when the body carries no language (stale client)", async () => {
+    const upstream = captureUpstream();
+
+    await handleGenerateRoutine(request(FULL_BODY));
+
+    const systemMessage =
+      upstream.get()?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(systemMessage).toContain("English");
+    expect(systemMessage).not.toContain("Spanish");
+  });
+
   it("rejects a body missing gender or age with a 400", async () => {
     const { profile, ...rest } = FULL_BODY;
     const { gender: _g, age: _a, ...profileNoIdentity } = profile;
@@ -123,6 +144,20 @@ describe("handleGenerateRoutine — edit branch", () => {
       upstream.get()?.messages.find((m) => m.role === "user")?.content ?? "";
     expect(userMessage).toContain("add a legs day with squats");
     expect(userMessage).toContain("Push");
+  });
+
+  it("threads the language into the edit prompt, defaulting to English", async () => {
+    const spanish = captureUpstream();
+    await handleGenerateRoutine(request({ ...EDIT_BODY, language: "es" }));
+    expect(
+      spanish.get()?.messages.find((m) => m.role === "system")?.content,
+    ).toContain("Spanish");
+
+    const stale = captureUpstream();
+    await handleGenerateRoutine(request({ ...EDIT_BODY, language: "klingon" }));
+    expect(
+      stale.get()?.messages.find((m) => m.role === "system")?.content,
+    ).toContain("English");
   });
 
   it("rejects an edit body with an empty instruction with a 400", async () => {

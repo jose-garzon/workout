@@ -2,6 +2,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/shared/db";
+import { setActiveLanguage } from "@/shared/i18n";
 import { server } from "@/test/msw/server";
 import { getActive, saveActive } from "./api/routineRepo";
 import { useGenerationStore } from "./logic/generationStore";
@@ -70,11 +71,52 @@ function streamingHandler(payload: object = PAYLOAD) {
   });
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setActiveLanguage(null);
+});
 
 beforeEach(async () => {
   useGenerationStore.getState().reset();
   await db.routines.clear();
+});
+
+describe("generate — request language (i18n AC3.1/AC3.4)", () => {
+  /** Capture the body the client POSTs, then stream the usual payload back. */
+  function captureHandler(box: { body: Record<string, unknown> }) {
+    return http.post("/api/generate-routine", async ({ request }) => {
+      box.body = (await request.json()) as Record<string, unknown>;
+      const stream = sseStream([
+        JSON.stringify({
+          choices: [{ delta: { content: JSON.stringify(PAYLOAD) } }],
+        }),
+      ]);
+      return new HttpResponse(stream, {
+        headers: { "content-type": "text/event-stream" },
+      });
+    });
+  }
+
+  it("sends language 'en' by default and 'es' when Spanish is active", async () => {
+    const box = { body: {} as Record<string, unknown> };
+    server.use(captureHandler(box));
+    const { result } = renderHook(() => useRoutineGeneration());
+
+    await act(async () => {
+      await result.current.generate("push pull legs", CTX);
+    });
+    expect(box.body.language).toBe("en");
+    // The rest of the contract is untouched — the routine still validates.
+    expect(result.current.status).toBe("ready");
+
+    act(() => result.current.reset());
+    setActiveLanguage("es");
+    await act(async () => {
+      await result.current.generate("push pull legs", CTX);
+    });
+    expect(box.body.language).toBe("es");
+    expect(result.current.status).toBe("ready");
+  });
 });
 
 describe("generate — streaming", () => {

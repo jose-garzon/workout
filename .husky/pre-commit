@@ -1,2 +1,3 @@
 bun run check
 bunx depcruise src
+bun run typecheck

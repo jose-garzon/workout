@@ -4,6 +4,13 @@
  * sessions for a routine into a compact per-exercise trend string fed to the AI
  * edit as prompt CONTEXT (not user display), so weights stay in canonical kg
  * with no unit conversion. Returns `null` for an empty window.
+ *
+ * DELIBERATELY NOT TRANSLATED (i18n-spanish-support task 7.2). Every string here
+ * ("Recent history", "sessions", "avg difficulty", …) is read by the model, not
+ * by the user — it never reaches the screen. Routing it through `t` would change
+ * what the model reads depending on the browser's language, for no user-visible
+ * benefit. Exercise NAMES inside the summary are the user's own routine data and
+ * are already in whatever language it was generated in.
  */
 
 import type { CompletedSession, ExerciseLog, SeriesLog } from "../types";

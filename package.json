@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "check": "biome check",
+    "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src",
     "firewall:proof": "bash scripts/firewall-proof.sh",
     "test": "vitest run",

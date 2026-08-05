@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslation } from "@/shared/i18n";
 import { ErrorBoundary } from "@/shared/ui/components/ErrorBoundary";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
+import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
 import { useWorkoutSession } from "../logic/useWorkoutSession";
 import { ExerciseView } from "./ExerciseView";
@@ -61,6 +63,7 @@ function MessagePanel({
   description: string;
 }) {
   const router = useRouter();
+  const { t } = useTranslation();
   return (
     <div className="flex flex-1 flex-col justify-between gap-[var(--space-8)]">
       <div className="flex flex-1 flex-col items-center justify-center gap-[var(--space-3)] text-center">
@@ -68,7 +71,7 @@ function MessagePanel({
         <p className="text-body text-text-muted">{description}</p>
       </div>
       <Button size="lg" fullWidth onClick={() => router.push("/")}>
-        Back to home
+        {t("workout.backHome")}
       </Button>
     </div>
   );
@@ -77,10 +80,11 @@ function MessagePanel({
 /** Empty state — reached when `dayId` isn't part of the active routine, or
  * no active routine exists. */
 function NoRoutineState() {
+  const { t } = useTranslation();
   return (
     <MessagePanel
-      heading="No workout to start here"
-      description="This day isn't part of your active routine — head back home to pick one that is."
+      heading={t("workout.noRoutine.heading")}
+      description={t("workout.noRoutine.description")}
     />
   );
 }
@@ -88,18 +92,22 @@ function NoRoutineState() {
 /** Error state — specific and human, always paired with a next step
  * (design-system.md §2 "The four states"); never a raw crash. */
 function ErrorState() {
+  const { t } = useTranslation();
   return (
     <MessagePanel
-      heading="This workout couldn't be loaded"
-      description="Something went wrong loading this session. Head back home and try again."
+      heading={t("workout.error.heading")}
+      description={t("workout.error.description")}
     />
   );
 }
 
 export function WorkoutModeBody({ dayId }: WorkoutModeBodyProps) {
+  const { t } = useTranslation();
   return (
-    <ErrorBoundary fallback={() => <ErrorState />}>
-      <WorkoutContent dayId={dayId} />
-    </ErrorBoundary>
+    <AppShell title={t("workout.title")}>
+      <ErrorBoundary fallback={() => <ErrorState />}>
+        <WorkoutContent dayId={dayId} />
+      </ErrorBoundary>
+    </AppShell>
   );
 }

@@ -1,5 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
+import { setActiveLanguage } from "@/shared/i18n";
 import { server } from "@/test/msw/server";
 import type { Routine } from "../../types";
 import {
@@ -53,6 +54,7 @@ afterEach(() => {
     value: true,
     configurable: true,
   });
+  setActiveLanguage(null);
 });
 
 describe("postGenerateRoutine — request body", () => {
@@ -78,6 +80,13 @@ describe("postGenerateRoutine — request body", () => {
     const body = await captureBody("bare prompt");
     expect(body.profile).toBeUndefined();
     expect(body.goals).toBeUndefined();
+  });
+
+  it("carries the active language, read ambiently (i18n §Decision 5)", async () => {
+    expect((await captureBody("x", CTX)).language).toBe("en");
+
+    setActiveLanguage("es");
+    expect((await captureBody("x", CTX)).language).toBe("es");
   });
 });
 

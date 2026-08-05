@@ -25,11 +25,14 @@ src/
              ui/ = the design system: tokens/, primitives/ (ATOMS — Button,
                Input… reused by every feature), components/ (feature-agnostic
                composites), layout/, theme/ (useTheme + store)
+             i18n/ = translation substrate: en.json/es.json (flat, dot-namespaced
+               keys), t()/useTranslation(), browser-language detection — a
+               dependency leaf importable from ui/, logic/, and api/ in any feature
 ```
 
 Feature-specific composite components stay in `modules/<feature>/ui`; only cross-feature atoms/primitives live in `shared/ui/primitives`. Import direction is strictly downward `ui -> logic -> api -> types`; a feature's four inner folders are private (exposed only via `index.ts`). The **logic↔UI interface** = the seam between a feature's `ui/` and its `logic/`.
 
-**Architecture firewall (CI-failing), split across two tools** because Biome's `noRestrictedImports` is a per-file forbid-list with no zone→target model or cycle detection: (1) [Biome] `modules/*/ui` imports only its own `logic/` + `shared/ui`; (2) [Biome] no upward imports inside a feature; (3) [dependency-cruiser] cross-feature via `index.ts` barrel only + no cycles (relational, Biome can't express); (4) [Biome — **security-load-bearing**] `app/api/**/route.ts` imports only `modules/routine-generation/api/ai/{prompt,schema,errors}` — never `shared/db` or any `*Repo` (both browser-only). A scaffold-time fixture must prove Biome errors when a route imports `shared/db`.
+**Architecture firewall (CI-failing), split across two tools** because Biome's `noRestrictedImports` is a per-file forbid-list with no zone→target model or cycle detection: (1) [Biome] `modules/*/ui` imports only its own `logic/` + `shared/ui` + `shared/i18n`; (2) [Biome] no upward imports inside a feature; (3) [dependency-cruiser] cross-feature via `index.ts` barrel only + no cycles (relational, Biome can't express); (4) [Biome — **security-load-bearing**] `app/api/**/route.ts` imports only `modules/routine-generation/api/ai/{prompt,schema,errors}` — never `shared/db` or any `*Repo` (both browser-only). A scaffold-time fixture must prove Biome errors when a route imports `shared/db`.
 
 ## OpenSpec workflow (spec-driven)
 

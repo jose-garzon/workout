@@ -22,6 +22,18 @@ import { routineJsonSchema } from "./schema";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
+/** Redeclared locally for the same leaf reason as in prompt.ts (§Decision 5). */
+type Language = "en" | "es";
+
+/**
+ * Narrow the client's `language` at the boundary. Anything that is not `"es"`
+ * — including a stale cached client that sends no `language` at all — is
+ * English, so the field is additive and never breaks an older client.
+ */
+function parseLanguage(language: unknown): Language {
+  return language === "es" ? "es" : "en";
+}
+
 function jsonError(error: AiError, status: number): Response {
   return Response.json({ error }, { status });
 }
@@ -43,6 +55,7 @@ function parseBuildBody(body: {
     unit?: unknown;
   };
   goals?: { focus?: unknown; daysPerWeek?: unknown; notes?: unknown };
+  language?: unknown;
 }): ChatMessage[] | null {
   const prompt = typeof body.prompt === "string" ? body.prompt : null;
   if (prompt === null || prompt.trim() === "") return null;
@@ -68,7 +81,7 @@ function parseBuildBody(body: {
   if (typeof body.goals?.notes === "string" && body.goals.notes.trim() !== "") {
     ctx.notes = body.goals.notes;
   }
-  return buildRoutinePrompt(prompt, ctx);
+  return buildRoutinePrompt(prompt, ctx, parseLanguage(body.language));
 }
 
 /**
@@ -80,6 +93,7 @@ function parseEditBody(body: {
   instruction?: unknown;
   routine?: unknown;
   sessionSummary?: unknown;
+  language?: unknown;
 }): ChatMessage[] | null {
   const instruction =
     typeof body.instruction === "string" ? body.instruction : null;
@@ -91,7 +105,12 @@ function parseEditBody(body: {
     typeof body.sessionSummary === "string" && body.sessionSummary.trim() !== ""
       ? body.sessionSummary
       : undefined;
-  return buildEditPrompt(instruction, body.routine, sessionSummary);
+  return buildEditPrompt(
+    instruction,
+    body.routine,
+    parseLanguage(body.language),
+    sessionSummary,
+  );
 }
 
 /** Narrow the client body into the chat messages, branching on `mode`. */

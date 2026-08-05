@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/shared/db";
+import { setActiveLanguage, t } from "@/shared/i18n";
 import { useCalendar } from "./useCalendar";
 
 /**
@@ -48,6 +49,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.useRealTimers();
+  setActiveLanguage(null);
 });
 
 describe("useCalendar", () => {
@@ -104,7 +106,17 @@ describe("useCalendar", () => {
     const { result } = renderHook(() => useCalendar());
     await waitFor(() => expect(result.current.loading).toBe(false));
     // Clock pinned to Fri 11 Jul 2025.
-    expect(result.current.month).toBe("July");
+    expect(result.current.month).toBe(t("calendar.month.july"));
+  });
+
+  it("renders the month and day labels in the active language (AC2.2)", async () => {
+    setActiveLanguage("es");
+    const { result } = renderHook(() => useCalendar());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.month).toBe("Julio");
+    // Mon 7 Jul 2025 is the first cell of the pinned week.
+    expect(result.current.week[0].label).toBe("Lun 7");
   });
 
   it("exposes exactly 7 Monday→Sunday cells and a year grid", async () => {

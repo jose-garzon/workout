@@ -1,6 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 
 /**
@@ -43,6 +44,7 @@ export function Composer({
   initialValue = "",
   focusOnMount = false,
 }: ComposerProps) {
+  const { t } = useTranslation();
   const [text, setText] = useState(initialValue);
   const canSubmit = text.trim() !== "" && !busy;
 
@@ -74,15 +76,13 @@ export function Composer({
     <div className="flex flex-col gap-[var(--space-3)] border border-border bg-surface p-[var(--space-4)] transition-colors focus-within:border-text focus-within:[box-shadow:var(--focus-ring)]">
       <textarea
         ref={focusIfNeeded}
-        aria-label="Describe the routine you want"
+        aria-label={t("composer.label")}
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
         disabled={busy}
         rows={3}
-        placeholder={
-          placeholder ?? "Describe your split, days, and priorities…"
-        }
+        placeholder={placeholder ?? t("composer.placeholder")}
         // The ring lives on the wrapper (focus-within, above) so it wraps
         // the WHOLE control, not just this textarea's own inset bounds.
         style={{ boxShadow: "none" }}
@@ -95,7 +95,7 @@ export function Composer({
         fullWidth
         style={{ boxShadow: "none" }}
       >
-        Build my routine
+        {t("composer.submit")}
       </Button>
     </div>
   );

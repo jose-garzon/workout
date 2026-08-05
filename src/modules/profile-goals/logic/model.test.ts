@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setActiveLanguage, t } from "@/shared/i18n";
 import type { Goals, Profile } from "../types";
 import {
   ALL_FIELD_NAMES,
@@ -14,6 +15,7 @@ import {
   type OnboardingDraft,
   recordsToDraft,
   STEP_COUNT,
+  stepTitle,
   validateAll,
   validateField,
   validateStep,
@@ -44,6 +46,8 @@ const NO_ERRORS = {
   focus: null,
   daysPerWeek: null,
 };
+
+afterEach(() => setActiveLanguage(null));
 
 describe("step layout", () => {
   it("has exactly 4 steps", () => {
@@ -88,9 +92,11 @@ describe("unit-aware labels", () => {
 
   it("labels body inputs in kg/cm for metric", () => {
     const [bodyweight, height] = getStepFields(2, validDraft(), errs);
-    expect(bodyweight.label).toContain("kg");
+    expect(bodyweight.label).toBe(
+      t("onboarding.field.bodyweight", { unit: "kg" }),
+    );
     expect(bodyweight.suffix).toBe("kg");
-    expect(height.label).toContain("cm");
+    expect(height.label).toBe(t("onboarding.field.height", { unit: "cm" }));
     expect(height.suffix).toBe("cm");
   });
 
@@ -100,10 +106,95 @@ describe("unit-aware labels", () => {
       validDraft({ unit: "imperial" }),
       errs,
     );
-    expect(bodyweight.label).toContain("lb");
+    expect(bodyweight.label).toBe(
+      t("onboarding.field.bodyweight", { unit: "lb" }),
+    );
     expect(bodyweight.suffix).toBe("lb");
-    expect(height.label).toContain("in");
+    expect(height.label).toBe(t("onboarding.field.height", { unit: "in" }));
     expect(height.suffix).toBe("in");
+  });
+});
+
+/**
+ * Every string this module produces comes from the dictionary (i18n §Context) —
+ * asserted through `t` so a copy edit never breaks a test, plus one Spanish
+ * pass proving the seam actually flips and the unit still interpolates.
+ */
+describe("translated copy", () => {
+  it("resolves the four step titles through the dictionary", () => {
+    for (let i = 0; i < STEP_COUNT; i++) {
+      expect(stepTitle(i)).not.toBe("");
+    }
+    expect(stepTitle(0)).toBe(t("onboarding.step.aboutYou"));
+    expect(stepTitle(3)).toBe(t("onboarding.step.training"));
+  });
+
+  it("resolves field labels, choice labels and placeholders", () => {
+    const [displayName, gender] = getStepFields(0, initialDraft, NO_ERRORS);
+    expect(displayName.label).toBe(t("onboarding.field.displayName"));
+    expect(displayName.placeholder).toBe(
+      t("onboarding.placeholder.displayName"),
+    );
+    expect(gender.options?.map((o) => o.label)).toEqual([
+      t("onboarding.gender.male"),
+      t("onboarding.gender.female"),
+      t("onboarding.gender.other"),
+    ]);
+
+    const [focus] = getStepFields(3, initialDraft, NO_ERRORS);
+    expect(focus.options?.map((o) => o.label)).toEqual([
+      t("onboarding.focus.strength"),
+      t("onboarding.focus.hypertrophy"),
+      t("onboarding.focus.endurance"),
+      t("onboarding.focus.general"),
+    ]);
+  });
+
+  it("resolves every validation message", () => {
+    expect(validateField("displayName", validDraft({ displayName: "" }))).toBe(
+      t("onboarding.error.displayName"),
+    );
+    expect(validateField("gender", validDraft({ gender: "" }))).toBe(
+      t("onboarding.error.gender"),
+    );
+    expect(validateField("age", validDraft({ age: "" }))).toBe(
+      t("onboarding.error.age.required"),
+    );
+    expect(validateField("age", validDraft({ age: "121" }))).toBe(
+      t("onboarding.error.age.range"),
+    );
+    expect(validateField("unit", validDraft({ unit: "stones" }))).toBe(
+      t("onboarding.error.unit"),
+    );
+    expect(validateField("bodyweight", validDraft({ bodyweight: "" }))).toBe(
+      t("onboarding.error.bodyweight.required"),
+    );
+    expect(validateField("bodyweight", validDraft({ bodyweight: "0" }))).toBe(
+      t("onboarding.error.bodyweight.invalid"),
+    );
+    expect(validateField("height", validDraft({ height: "abc" }))).toBe(
+      t("onboarding.error.height.invalid"),
+    );
+    expect(validateField("focus", validDraft({ focus: "" }))).toBe(
+      t("onboarding.error.focus"),
+    );
+    expect(validateField("daysPerWeek", validDraft({ daysPerWeek: "" }))).toBe(
+      t("onboarding.error.daysPerWeek.required"),
+    );
+    expect(validateField("daysPerWeek", validDraft({ daysPerWeek: "8" }))).toBe(
+      t("onboarding.error.daysPerWeek.range"),
+    );
+  });
+
+  it("flips to Spanish, interpolating the unit into the bodyweight label", () => {
+    setActiveLanguage("es");
+
+    expect(stepTitle(0)).toBe("Sobre ti");
+    const [bodyweight] = getStepFields(2, validDraft(), NO_ERRORS);
+    expect(bodyweight.label).toBe("Peso corporal (kg)");
+    expect(validateField("displayName", validDraft({ displayName: "" }))).toBe(
+      "Escribe tu nombre",
+    );
   });
 });
 

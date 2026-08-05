@@ -2,6 +2,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/shared/db";
+import { setActiveLanguage, t } from "@/shared/i18n";
 import { server } from "@/test/msw/server";
 import { getActive, saveActive } from "./api/routineRepo";
 import { useEditStore } from "./logic/editStore";
@@ -91,6 +92,7 @@ function setOnline(online: boolean) {
 afterEach(() => {
   cleanup();
   setOnline(true);
+  setActiveLanguage(null);
 });
 
 beforeEach(async () => {
@@ -139,7 +141,7 @@ describe("useRoutineEdit — direct-apply", () => {
     });
 
     expect(result.current.status).toBe("error");
-    expect(result.current.errorMessage).toMatch(/couldn't apply|try again/i);
+    expect(result.current.errorMessage).toBe(t("error.edit.generic"));
     expect((await getActive())?.days).toHaveLength(1);
   });
 
@@ -159,7 +161,7 @@ describe("useRoutineEdit — direct-apply", () => {
 
     expect(hit).toBe(false);
     expect(result.current.status).toBe("error");
-    expect(result.current.errorMessage).toMatch(/offline|connection/i);
+    expect(result.current.errorMessage).toBe(t("error.edit.offline"));
     expect((await getActive())?.days).toHaveLength(1);
   });
 
@@ -213,6 +215,44 @@ describe("useRoutineEdit — direct-apply", () => {
     expect(result.current.status).toBe("error");
     expect((await getActive())?.days).toHaveLength(1);
     expect((await getActive())?.days[0].id).toBe("day-push");
+  });
+
+  it("reports the failure in the active language (i18n: logic-produced copy)", async () => {
+    setActiveLanguage("es");
+    setOnline(false);
+    const { result } = renderHook(() => useRoutineEdit());
+
+    await act(async () => {
+      await result.current.submit("add a legs day");
+    });
+
+    expect(result.current.errorMessage).toBe(
+      "Estás sin conexión: editar necesita conexión.",
+    );
+  });
+
+  it("carries the active language on the edit request (i18n AC3.3/AC3.4)", async () => {
+    let sentBody: Record<string, unknown> = {};
+    server.use(
+      http.post("/api/generate-routine", async ({ request }) => {
+        sentBody = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse(sseStream(JSON.stringify(EDITED)), {
+          headers: { "content-type": "text/event-stream" },
+        });
+      }),
+    );
+    const { result } = renderHook(() => useRoutineEdit());
+
+    await act(async () => {
+      await result.current.submit("add a legs day");
+    });
+    expect(sentBody.language).toBe("en");
+
+    setActiveLanguage("es");
+    await act(async () => {
+      await result.current.submit("add a legs day");
+    });
+    expect(sentBody.language).toBe("es");
   });
 
   it("is a no-op for an empty / whitespace-only instruction", async () => {

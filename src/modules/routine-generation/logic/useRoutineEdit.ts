@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { t } from "@/shared/i18n";
 import { editRoutine } from "../api/ai/client";
 import type { AiError } from "../api/ai/errors";
 import { getActive, saveActive } from "../api/routineRepo";
@@ -34,15 +35,19 @@ export interface RoutineEdit {
   reset: () => void;
 }
 
-/** Map an `AiError` to edit-flavored copy — the UI renders this string as-is. */
+/**
+ * Map an `AiError` to edit-flavored copy — the UI renders this string as-is, so
+ * the message is resolved here, in logic, through `t` (i18n spec: "strings
+ * produced outside components are translated too").
+ */
 function editErrorMessage(error: AiError): string {
   switch (error.kind) {
     case "offline":
-      return "You're offline — editing needs a connection.";
+      return t("error.edit.offline");
     case "rate-limit":
-      return "Too many requests. Wait a moment and try again.";
+      return t("error.edit.rateLimit");
     default:
-      return "Couldn't apply your edit — try again.";
+      return t("error.edit.generic");
   }
 }
 

@@ -8,6 +8,7 @@ import {
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/shared/db";
+import { t } from "@/shared/i18n";
 import { saveActive } from "./api/routineRepo";
 import { useEditStore } from "./logic/editStore";
 import { useGenerationStore } from "./logic/generationStore";
@@ -76,12 +77,12 @@ describe("Composer", () => {
     const onSubmit = vi.fn();
     render(<Composer onSubmit={onSubmit} busy={false} />);
 
-    const button = screen.getByRole("button", { name: "Build my routine" });
+    const button = screen.getByRole("button", { name: t("composer.submit") });
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(onSubmit).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText("Describe the routine you want"), {
+    fireEvent.change(screen.getByLabelText(t("composer.label")), {
       target: { value: "   " },
     });
     expect(button).toBeDisabled();
@@ -91,10 +92,10 @@ describe("Composer", () => {
     const onSubmit = vi.fn();
     render(<Composer onSubmit={onSubmit} busy={false} />);
 
-    fireEvent.change(screen.getByLabelText("Describe the routine you want"), {
+    fireEvent.change(screen.getByLabelText(t("composer.label")), {
       target: { value: "  push pull legs  " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Build my routine" }));
+    fireEvent.click(screen.getByRole("button", { name: t("composer.submit") }));
     expect(onSubmit).toHaveBeenCalledWith("push pull legs");
   });
 });
@@ -104,12 +105,12 @@ describe("RoutineHomeScreen — identity + empty state", () => {
     render(<RoutineHomeScreen {...PROPS} />);
 
     expect(
-      await screen.findByRole("heading", { name: /Hey, Alex/ }),
+      await screen.findByRole("heading", {
+        name: t("home.greeting", { name: "Alex" }),
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Hypertrophy")).toBeInTheDocument();
-    expect(
-      screen.getByText(/describe your training below/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(t("home.goal.hypertrophy"))).toBeInTheDocument();
+    expect(screen.getByText(t("home.empty.hint"))).toBeInTheDocument();
   });
 });
 
@@ -123,7 +124,13 @@ describe("RoutineHomeScreen — in-flight", () => {
     });
     render(<RoutineHomeScreen {...PROPS} />);
 
-    expect(screen.getByText("Building your routine…")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        t("routine.indicator.template", {
+          verb: t("routine.building.verb.building"),
+        }),
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("Choosing your split")).toBeInTheDocument();
   });
 });
@@ -146,9 +153,11 @@ describe("RoutineHomeScreen — routine summary", () => {
     render(<RoutineHomeScreen {...PROPS} />);
 
     await screen.findByRole("link", { name: /Push/ });
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(
-      screen.queryByLabelText("Describe the routine you want"),
+      screen.getByRole("button", { name: t("routine.summary.edit") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(t("composer.label")),
     ).not.toBeInTheDocument();
   });
 });

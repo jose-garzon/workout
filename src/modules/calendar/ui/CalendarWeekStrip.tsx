@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { useCalendar } from "../logic/useCalendar";
 import { ActivityDrawer } from "./ActivityDrawer";
 import { WeekCell } from "./WeekCell";
@@ -28,6 +29,7 @@ import { WeekCell } from "./WeekCell";
  * `ml-auto` special-casing needed.
  */
 export function CalendarWeekStrip() {
+  const { t } = useTranslation();
   const { week, month, weeklyProgress, yearGrid, loading, error } =
     useCalendar();
   const [open, setOpen] = useState(false);
@@ -36,7 +38,7 @@ export function CalendarWeekStrip() {
     return (
       <div className="flex min-h-[4.75rem] items-center border border-border bg-surface px-[var(--space-4)]">
         <p className="text-caption text-text-muted">
-          Couldn't load this week's activity.
+          {t("calendar.weekStrip.error")}
         </p>
       </div>
     );
@@ -47,7 +49,7 @@ export function CalendarWeekStrip() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open activity tracker"
+        aria-label={t("calendar.weekStrip.open")}
         className="anim-press group flex w-full flex-col gap-[var(--space-2)] text-left"
       >
         <div className="grid grid-cols-7 gap-[var(--space-1)] justify-items-center">
@@ -65,7 +67,10 @@ export function CalendarWeekStrip() {
         <div className="flex items-center justify-between gap-[var(--space-2)] text-caption text-text-muted">
           <span>
             {weeklyProgress !== null &&
-              `${weeklyProgress.completed} of ${weeklyProgress.target} this week`}
+              t("calendar.weekStrip.progress", {
+                completed: weeklyProgress.completed,
+                target: weeklyProgress.target,
+              })}
           </span>
           <span>{month}</span>
         </div>

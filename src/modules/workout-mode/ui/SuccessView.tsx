@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import { ChoiceGroup } from "@/shared/ui/primitives/ChoiceGroup";
 import type { WorkoutSessionApi } from "../logic/useWorkoutSession";
@@ -25,6 +26,7 @@ const RATING_OPTIONS = ["1", "2", "3", "4", "5"].map((value) => ({
  */
 export function SuccessView({ session }: SuccessViewProps) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [difficulty, setDifficulty] = useState("");
   const [fatigue, setFatigue] = useState("");
 
@@ -50,28 +52,28 @@ export function SuccessView({ session }: SuccessViewProps) {
       <div className="flex flex-1 flex-col items-center justify-center gap-[var(--space-6)] text-center">
         <CelebrationGraphic />
         <div className="flex flex-col gap-[var(--space-2)]">
-          <h2 className="text-title-1">Workout complete</h2>
+          <h2 className="text-title-1">{t("workout.success.heading")}</h2>
           <p className="text-body text-text-muted">
-            Nice work — every set is saved.
+            {t("workout.success.subtitle")}
           </p>
         </div>
       </div>
 
       <div className="flex w-full flex-col gap-[var(--space-6)]">
         <ChoiceGroup
-          label="Difficulty (1–5)"
+          label={t("workout.success.difficulty")}
           options={RATING_OPTIONS}
           value={difficulty}
           onChange={handleDifficulty}
         />
         <ChoiceGroup
-          label="Fatigue (1–5)"
+          label={t("workout.success.fatigue")}
           options={RATING_OPTIONS}
           value={fatigue}
           onChange={handleFatigue}
         />
         <Button size="lg" fullWidth onClick={() => router.push("/")}>
-          Back to home
+          {t("workout.backHome")}
         </Button>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import type { MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "@/shared/i18n";
 import type { YearGridDay } from "../types";
 import { YearGrid } from "./YearGrid";
 
@@ -87,6 +88,7 @@ export function ActivityDrawer({
   yearGrid,
   onClose,
 }: ActivityDrawerProps) {
+  const { t } = useTranslation();
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -176,13 +178,13 @@ export function ActivityDrawer({
       >
         <div className="flex shrink-0 items-center justify-between gap-[var(--space-4)]">
           <h2 id="activity-drawer-title" className="text-title-2">
-            Activity tracker
+            {t("calendar.drawer.title")}
           </h2>
           <button
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            aria-label="Close activity tracker"
+            aria-label={t("calendar.drawer.close")}
             className="anim-press flex h-[var(--tap-target-min)] w-[var(--tap-target-min)] shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text"
           >
             <CloseIcon />
@@ -192,7 +194,7 @@ export function ActivityDrawer({
           id="activity-drawer-description"
           className="shrink-0 text-caption text-text-muted"
         >
-          Every filled square is a day you trained in {year}.
+          {t("calendar.drawer.description", { year })}
         </p>
         <div className="min-h-0 flex-1">
           <YearGrid days={yearGrid} />

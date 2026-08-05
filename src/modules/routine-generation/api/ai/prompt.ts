@@ -15,6 +15,32 @@ export interface ChatMessage {
 }
 
 /**
+ * Redeclared locally rather than imported from `@/shared/i18n`
+ * (i18n-spanish-support design.md §Decision 5): this module is a dependency
+ * leaf so the server graph stays free of browser-side modules and the route's
+ * import firewall (rule 4) is untouched. Two members, negligible drift risk —
+ * promote to a shared type-only import if a third language ever lands.
+ */
+type Language = "en" | "es";
+
+const LANGUAGE_NAMES = { en: "English", es: "Spanish" } as const;
+
+/**
+ * The output language instruction. Placed LAST in both system prompts — after
+ * `EXAMPLE`, whose English exercise names the model would otherwise copy.
+ * Pinning the JSON keys to English is not decoration: translated keys would
+ * fail `routineSchema` and surface as a `parse` error.
+ */
+function languageDirective(language: Language): string {
+  return [
+    `Write every human-readable value in ${LANGUAGE_NAMES[language]}: the routine`,
+    '"name", the "subtitle", every day "name", and every exercise "name".',
+    "The JSON KEYS stay EXACTLY as specified above, in English — do not translate",
+    "keys. Numbers are unchanged.",
+  ].join(" ");
+}
+
+/**
  * The subset of the user's profile/goals the prompt needs (design.md §D2).
  * Carries every onboarding field that shapes a routine so the user never
  * re-types it: goal + days (split), plus gender / age / bodyweight / height
@@ -141,10 +167,14 @@ function formatHeight(ctx: PromptContext): string | null {
   return `${Math.round(ctx.heightCm)} cm`;
 }
 
-/** Build the chat messages for a routine-generation request (design.md §D2). */
+/**
+ * Build the chat messages for a routine-generation request (design.md §D2).
+ * `language` is REQUIRED, not defaulted, so `tsc` catches a missed call site.
+ */
 export function buildRoutinePrompt(
   userPrompt: string,
   ctx: PromptContext,
+  language: Language,
 ): ChatMessage[] {
   const lines = [
     `Primary goal: ${ctx.focus}.`,
@@ -162,7 +192,10 @@ export function buildRoutinePrompt(
   lines.push("", `Request: ${userPrompt}`);
 
   return [
-    { role: "system", content: SYSTEM_PROMPT },
+    {
+      role: "system",
+      content: [SYSTEM_PROMPT, languageDirective(language)].join("\n\n"),
+    },
     { role: "user", content: lines.join("\n") },
   ];
 }
@@ -187,6 +220,10 @@ const EDIT_SYSTEM_PROMPT = [
  * user's current routine, already stripped of ids, echoed back purely as prompt
  * context — it is not re-validated here (the RESPONSE is validated client-side).
  *
+ * `language` (i18n-spanish-support §Decision 5) is REQUIRED and sits before the
+ * optional `sessionSummary`, so any new/renamed exercise comes back in the UI's
+ * language and a routine never ends up half-translated.
+ *
  * `sessionSummary` (routine-edit-history §Decision 5) is the optional on-device
  * summary of recent completed-session history; when present it is appended as a
  * distinct "Recent workout history" block. When absent, the message is
@@ -195,6 +232,7 @@ const EDIT_SYSTEM_PROMPT = [
 export function buildEditPrompt(
   instruction: string,
   routine: unknown,
+  language: Language,
   sessionSummary?: string,
 ): ChatMessage[] {
   const lines = [
@@ -208,7 +246,10 @@ export function buildEditPrompt(
   }
 
   return [
-    { role: "system", content: EDIT_SYSTEM_PROMPT },
+    {
+      role: "system",
+      content: [EDIT_SYSTEM_PROMPT, languageDirective(language)].join("\n\n"),
+    },
     { role: "user", content: lines.join("\n") },
   ];
 }

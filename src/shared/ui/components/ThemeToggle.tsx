@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "@/shared/i18n";
 import { useTheme } from "@/shared/ui/theme/useTheme";
 
 /**
@@ -9,6 +10,7 @@ import { useTheme } from "@/shared/ui/theme/useTheme";
  */
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
   const isDark = theme === "dark";
 
   return (
@@ -16,11 +18,11 @@ export function ThemeToggle() {
       type="button"
       role="switch"
       aria-checked={isDark}
-      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      aria-label={isDark ? t("common.theme.toLight") : t("common.theme.toDark")}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className="text-micro anim-press inline-flex h-[var(--control-height-sm)] items-center gap-2 border border-border bg-transparent px-[var(--space-4)] text-text hover:bg-surface"
     >
-      {isDark ? "Dark" : "Light"}
+      {isDark ? t("common.theme.dark") : t("common.theme.light")}
     </button>
   );
 }

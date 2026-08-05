@@ -85,6 +85,9 @@ context: |
                  layout/ (AppShell, safe-area), theme/ (useTheme + store — lives
                  here so theme + tokens ship as one unit). Feature-specific composites
                  stay in modules/<feature>/ui.
+                 i18n/ = translation substrate (en.json/es.json, t()/useTranslation(),
+                 browser-language detection) — a dependency leaf, importable from
+                 ui/, logic/, and api/ in any feature.
     Import direction is strictly downward: ui -> logic -> api -> types. A feature's
     four inner folders are PRIVATE; everything it exposes leaves through index.ts.
     The logic<->UI interface = the seam between a feature's ui/ and its logic/.
@@ -93,7 +96,7 @@ context: |
     Biome's noRestrictedImports is a per-file forbid-list (no zone->target model,
     no cycle detection):
       1. Feature UI isolation [Biome]: modules/*/ui imports only its own logic/ +
-         shared/ui (incl. theme); never api/, shared/db, or another feature.
+         shared/ui (incl. theme) + shared/i18n; never api/, shared/db, or another feature.
       2. In-feature layer direction [Biome]: no upward imports (api can't reach
          logic/ui; logic can't reach ui).
       3. Cross-feature = barrel-only + no cycles [dependency-cruiser, CI]: outsiders
