@@ -10,7 +10,14 @@ import type { CompletedSession } from "./types";
  * active routine (routine-edit-history design.md §Decision 3): no routine → null;
  * routine + zero sessions → null; routine + sessions → non-null; and the live
  * query re-emits when a completed session is logged mid-mount.
+ *
+ * The seam also performs the D→A join (evidence-based-routine-prompts §D4), so
+ * the saved weekly target has to travel from Dexie into the summary string.
  */
+
+async function seedGoals(daysPerWeek: number) {
+  await db.goals.put({ id: "me", focus: "hypertrophy", daysPerWeek });
+}
 
 async function seedActiveRoutine() {
   await db.routines.put({
@@ -58,7 +65,11 @@ function benchSession(
 }
 
 beforeEach(async () => {
-  await Promise.all([db.routines.clear(), db.completedSessions.clear()]);
+  await Promise.all([
+    db.routines.clear(),
+    db.completedSessions.clear(),
+    db.goals.clear(),
+  ]);
 });
 
 afterEach(() => {
@@ -87,6 +98,16 @@ describe("useSessionSummary", () => {
     const { result } = renderHook(() => useSessionSummary());
     await waitFor(() => expect(result.current).not.toBeNull());
     expect(result.current).toContain("Bench Press");
+  });
+
+  it("carries an adherence line from the saved weekly target", async () => {
+    await seedGoals(4);
+    await seedActiveRoutine();
+    await saveCompleted(benchSession("s1", 1000, 60));
+
+    const { result } = renderHook(() => useSessionSummary());
+    await waitFor(() => expect(result.current).toContain("Adherence:"));
+    expect(result.current).toContain("target 4/week");
   });
 
   it("re-emits when a completed session is added mid-mount", async () => {

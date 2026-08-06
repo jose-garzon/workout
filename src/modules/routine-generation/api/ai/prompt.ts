@@ -7,7 +7,21 @@
  * server is firewalled off `shared/db` (rule 4) and cannot read them itself
  * (design.md §D2). This module accepts them as a plain, minimal shape rather
  * than importing the profile-goals domain types, so it stays a dependency leaf.
+ *
+ * This module owns message ASSEMBLY only. The coaching content it assembles —
+ * volume dose, split guidance, rep/rest bands, age adjustments, edit diagnostics
+ * — lives in the `./coaching` sibling (evidence-based-routine-prompts §D1),
+ * which is itself import-free so the server graph stays clean.
  */
+
+import {
+  ageAdjustment,
+  EDIT_DIAGNOSTICS,
+  focusBands,
+  PROGRAMMING_FRAME,
+  REASONING_IS_INTERNAL,
+  splitGuidance,
+} from "./coaching";
 
 export interface ChatMessage {
   role: "system" | "user";
@@ -131,20 +145,42 @@ const INTERPRET = [
   "clarify and never return an empty or partial routine.",
 ].join(" ");
 
-const SYSTEM_PROMPT = [
-  [
-    "You are a strength-training coach for an intermediate gym-goer with full-gym",
-    "equipment access. Design a gym routine as STRUCTURE ONLY: a weekly split of",
-    "training days, each with exercises and, per exercise, planned sets with reps",
-    "and rest seconds. Also author a single short (max ~12 words) motivational",
-    '"subtitle" for the routine. Do not add beginner form or safety guidance.',
-  ].join(" "),
-  INTERPRET,
-  "Return EXACTLY as many day entries as the requested training-days count.",
-  OUTPUT_CONTRACT,
-  SCHEMA_SHAPE,
-  EXAMPLE,
-].join("\n\n");
+const ROLE = [
+  "You are a strength-training coach for an intermediate gym-goer with full-gym",
+  "equipment access. Design a gym routine as STRUCTURE ONLY: a weekly split of",
+  "training days, each with exercises and, per exercise, planned sets with reps",
+  "and rest seconds. Also author a single short (max ~12 words) motivational",
+  '"subtitle" for the routine. Do not add beginner form or safety guidance.',
+].join(" ");
+
+/**
+ * Assemble the create system prompt in the order fixed by
+ * evidence-based-routine-prompts §D3. Two placements are load-bearing:
+ *
+ * - ALL coaching sits BEFORE `OUTPUT_CONTRACT`/`SCHEMA_SHAPE`/`EXAMPLE`. The
+ *   prompt roughly triples here, and the format blocks only work because they
+ *   hold the recency slot — weak/free models already ignore `response_format`.
+ * - `ageAdjustment` comes AFTER `focusBands`, so it reads as the later,
+ *   narrowing instruction where the two collide (a `< 18` rep floor of 8 vs a
+ *   `strength` band of 3-6 reps).
+ *
+ * The day-count directive stays glued to `splitGuidance`, the one block that
+ * could otherwise contradict it.
+ */
+function createSystemPrompt(ctx: PromptContext): string {
+  const blocks = [
+    ROLE,
+    INTERPRET,
+    PROGRAMMING_FRAME,
+    splitGuidance(ctx.daysPerWeek),
+    "Return EXACTLY as many day entries as the requested training-days count.",
+    focusBands(ctx.focus),
+  ];
+  const age = ageAdjustment(ctx.age);
+  if (age !== null) blocks.push(age);
+  blocks.push(REASONING_IS_INTERNAL, OUTPUT_CONTRACT, SCHEMA_SHAPE, EXAMPLE);
+  return blocks.join("\n\n");
+}
 
 /** Weight in the user's own units, for the context line (kg stored canonically). */
 function formatBodyweight(ctx: PromptContext): string | null {
@@ -194,7 +230,9 @@ export function buildRoutinePrompt(
   return [
     {
       role: "system",
-      content: [SYSTEM_PROMPT, languageDirective(language)].join("\n\n"),
+      content: [createSystemPrompt(ctx), languageDirective(language)].join(
+        "\n\n",
+      ),
     },
     { role: "user", content: lines.join("\n") },
   ];
@@ -209,7 +247,10 @@ const EDIT_SYSTEM_PROMPT = [
     "asked to change.",
     "If recent workout history is provided, take it into account when applying",
     "the change.",
+    "Never revise, add, remove, or rebalance anything the instruction did not",
+    "reference, however strongly the history suggests it.",
   ].join(" "),
+  EDIT_DIAGNOSTICS,
   OUTPUT_CONTRACT,
   SCHEMA_SHAPE,
   EXAMPLE,
