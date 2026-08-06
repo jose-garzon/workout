@@ -1,14 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import en from "./en.json";
 import es from "./es.json";
-import {
-  activeLanguage,
-  DICTIONARIES,
-  interpolate,
-  resolveLanguage,
-  setActiveLanguage,
-  t,
-} from "./translate";
+import { setActiveLanguage } from "./languageStore";
+import { DICTIONARIES, interpolate, t } from "./translate";
 
 /**
  * The ONLY file that asserts on dictionary contents (design §Decision 7) — and
@@ -18,35 +12,6 @@ import {
  */
 
 afterEach(() => setActiveLanguage(null));
-
-describe("resolveLanguage", () => {
-  it("selects Spanish for any es-* tag, whatever the casing", () => {
-    expect(resolveLanguage("es-ES")).toBe("es");
-    expect(resolveLanguage("es")).toBe("es");
-    expect(resolveLanguage("ES-es")).toBe("es");
-    expect(resolveLanguage("es-419")).toBe("es");
-  });
-
-  it("falls back to English for other, unsupported, or missing tags", () => {
-    expect(resolveLanguage("en-US")).toBe("en");
-    expect(resolveLanguage("fr-FR")).toBe("en");
-    expect(resolveLanguage("")).toBe("en");
-    expect(resolveLanguage(undefined)).toBe("en");
-  });
-});
-
-describe("activeLanguage", () => {
-  it("resolves from the browser and is English under jsdom (en-US)", () => {
-    expect(activeLanguage()).toBe("en");
-  });
-
-  it("is forced by setActiveLanguage and re-resolves on null", () => {
-    setActiveLanguage("es");
-    expect(activeLanguage()).toBe("es");
-    setActiveLanguage(null);
-    expect(activeLanguage()).toBe("en");
-  });
-});
 
 describe("interpolate", () => {
   it("replaces a single placeholder", () => {

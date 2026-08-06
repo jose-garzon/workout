@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useRoutineEdit } from "@/modules/routine-generation";
 import { type TranslationKey, useTranslation } from "@/shared/i18n";
+import { GoalBadge } from "@/shared/ui/components/GoalBadge";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
 import { useActiveRoutine } from "../logic/useActiveRoutine";
@@ -50,14 +51,6 @@ export interface RoutineHomeScreenProps {
    */
   weekStrip?: ReactNode;
   /**
-   * Opens the profile editor (edit-profile design.md D6) — a plain optional
-   * callback slot, same pattern as `weekStrip`: the drawer itself is a
-   * sibling mounted at the app layer, not a child here, so this screen never
-   * imports another feature's UI. Renders an edit affordance in the identity
-   * block only when supplied.
-   */
-  onEditProfile?: () => void;
-  /**
    * The on-device summary of recent completed-session history
    * (routine-edit-history design.md §Decision 4) — a plain `string | null`
    * supplied by the app composition layer (same pattern as `weekStrip`), never
@@ -67,33 +60,6 @@ export interface RoutineHomeScreenProps {
   sessionSummary?: string | null;
 }
 
-/**
- * A plain stroke pencil (design-system.md §2 "Iconography"), local to this
- * file — `RoutineSummary`'s identical icon isn't exported, and its "Edit"
- * button already occupies that accessible name (the active routine's edit
- * affordance), so this one is icon-only with its own `aria-label`
- * ("Edit profile") to keep the two unambiguous.
- */
-function EditProfileIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 20 20"
-      width="18"
-      height="18"
-      fill="none"
-    >
-      <path
-        d="M12.5 3.5l4 4L6 18H2v-4L12.5 3.5z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="butt"
-        strokeLinejoin="miter"
-      />
-    </svg>
-  );
-}
-
 /** Human, specific copy per AI failure — never a raw technical string. */
 const ERROR_MESSAGE_KEYS: Record<string, TranslationKey> = {
   offline: "error.build.offline",
@@ -101,14 +67,6 @@ const ERROR_MESSAGE_KEYS: Record<string, TranslationKey> = {
   "rate-limit": "error.build.rateLimit",
   parse: "error.build.parse",
   provider: "error.build.provider",
-};
-
-/** The four `TrainingFocus` values (design.md §3.1) → their home badge key. */
-const GOAL_LABEL_KEYS: Record<string, TranslationKey> = {
-  strength: "home.goal.strength",
-  hypertrophy: "home.goal.hypertrophy",
-  endurance: "home.goal.endurance",
-  general: "home.goal.general",
 };
 
 export function RoutineHomeScreen({
@@ -122,7 +80,6 @@ export function RoutineHomeScreen({
   unit,
   notes,
   weekStrip,
-  onEditProfile,
   sessionSummary,
 }: RoutineHomeScreenProps) {
   const { t } = useTranslation();
@@ -194,32 +151,19 @@ export function RoutineHomeScreen({
   const motivation = active
     ? (active.subtitle ?? t("home.motivation.ready"))
     : t("home.motivation.default");
-  const goalKey = GOAL_LABEL_KEYS[focus];
 
   return (
     <>
       <AppShell title={t("home.title")} inert={editBusy}>
         {/* Identity block: greeting + goal + motivational line. `AppShell`'s
           own `<h1>{title}</h1>` is `sr-only` (the header shows only the Logo
-          + theme toggle), so this `<h2>` is the screen's one VISIBLE
-          heading. */}
+          + profile link), so this `<h2>` is the screen's one VISIBLE
+          heading. Editing the profile now lives on its own page, reached
+          via the header's profile link (profile-page design.md) — home no
+          longer renders an edit affordance of its own. */}
         <div className="flex flex-col gap-[var(--space-3)]">
-          <div className="flex items-center justify-between gap-[var(--space-4)]">
-            <h2 className="text-title-1">{t("home.greeting", { name })}</h2>
-            {onEditProfile && (
-              <button
-                type="button"
-                onClick={onEditProfile}
-                aria-label={t("home.editProfile")}
-                className="anim-press flex h-[var(--tap-target-min)] w-[var(--tap-target-min)] shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text"
-              >
-                <EditProfileIcon />
-              </button>
-            )}
-          </div>
-          <span className="text-micro inline-flex h-[var(--space-7)] w-fit items-center bg-accent-wash px-[var(--space-4)] text-accent-text">
-            {goalKey ? t(goalKey) : focus}
-          </span>
+          <h2 className="text-title-1">{t("home.greeting", { name })}</h2>
+          <GoalBadge focus={focus} />
           <p className="text-body text-text-muted">{motivation}</p>
         </div>
 

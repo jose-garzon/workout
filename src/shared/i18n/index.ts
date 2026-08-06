@@ -5,10 +5,10 @@
 
 export {
   activeLanguage,
+  LANGUAGE_STORAGE_KEY,
   type Language,
   resolveLanguage,
   setActiveLanguage,
-  type TranslationKey,
-  t,
-} from "./translate";
-export { useTranslation } from "./useTranslation";
+} from "./languageStore";
+export { type TranslationKey, t } from "./translate";
+export { useLanguage, useTranslation } from "./useTranslation";

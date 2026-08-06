@@ -41,7 +41,8 @@ async function completeOnboarding(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Start" }).click();
 
   await page.getByLabel("Your name", { exact: false }).fill("Alex");
-  await page.getByRole("radio", { name: "Male" }).click();
+  // exact:true — a substring match on "Male" also hits "Female".
+  await page.getByRole("radio", { name: "Male", exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await page.getByLabel("Age", { exact: false }).fill("28");

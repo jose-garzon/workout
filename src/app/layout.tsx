@@ -14,13 +14,15 @@ export const metadata: Metadata = {
  * `light` -> light; dark / no-preference / unavailable -> dark (tie-break).
  *
  * The same script also resolves the DOCUMENT LANGUAGE (i18n-spanish-support
- * design.md §Decision 4) so `<html lang>` is correct before the first paint and
- * assistive tech pronounces Spanish correctly.
+ * design.md §Decision 4, profile-page design.md §D5) so `<html lang>` is correct
+ * before the first paint and assistive tech pronounces Spanish correctly. Same
+ * precedence as the theme: a persisted choice wins, otherwise browser detection.
  *
- * Two literals here are duplicated in TS modules this script cannot import:
- * the storage key ("wp.theme") in shared/ui/theme/themeStore.ts
- * (THEME_STORAGE_KEY), and the `es`-prefix language rule in
- * shared/i18n/translate.ts (resolveLanguage). Keep each pair in sync by hand.
+ * THREE literals here are duplicated in TS modules this script cannot import:
+ * the theme storage key ("wp.theme") in shared/ui/theme/themeStore.ts
+ * (THEME_STORAGE_KEY), and — both in shared/i18n/languageStore.ts — the language
+ * storage key ("wp.lang", LANGUAGE_STORAGE_KEY) and the `es`-prefix language
+ * rule (resolveLanguage). Keep each pair in sync by hand.
  */
 const NO_FLASH_THEME_SCRIPT = `
 (function () {
@@ -32,8 +34,11 @@ const NO_FLASH_THEME_SCRIPT = `
           ? 'light'
           : 'dark');
     document.documentElement.dataset.theme = theme;
+    var storedLang = localStorage.getItem('wp.lang');
     document.documentElement.lang =
-      (navigator.language || 'en').toLowerCase().indexOf('es') === 0 ? 'es' : 'en';
+      storedLang === 'en' || storedLang === 'es'
+        ? storedLang
+        : ((navigator.language || 'en').toLowerCase().indexOf('es') === 0 ? 'es' : 'en');
   } catch (e) {
     document.documentElement.dataset.theme = 'dark';
   }

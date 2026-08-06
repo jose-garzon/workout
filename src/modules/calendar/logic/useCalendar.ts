@@ -3,6 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
 import { useActiveRoutine } from "@/modules/routine-generation";
+import { useTranslation } from "@/shared/i18n";
 import { getCompletedInRange } from "../api/calendarRepo";
 import type {
   CompletedRef,
@@ -66,6 +67,12 @@ export function useCalendar(): CalendarApi {
   // key gates recompute to day boundaries, so a session completed after midnight
   // (its Dexie emit re-renders us) lands in the correct day/week/year.
   const todayKey = localDayKey(Date.now());
+  // `language` is a real dependency, not decoration: this memo's output CONTAINS
+  // translated strings (the month name, the weekday labels) and `t`'s identity
+  // never changes, so without it the labels would keep the old language after a
+  // runtime language switch (profile-page design.md §D4).
+  const { language } = useTranslation();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `language` looks extra to the analyser because the memo calls `t` indirectly (through `buildWeek`/`monthName`) rather than reading `language` itself — dropping it strands the labels in the old language after a switch.
   const views = useMemo(() => {
     const refs = result?.refs ?? [];
     const [y, m, d] = todayKey.split("-").map(Number);
@@ -80,7 +87,7 @@ export function useCalendar(): CalendarApi {
       weeklyProgress: weeklyProgress(week, routine),
       yearGrid: buildYearGrid(refs, y),
     };
-  }, [result, routine, todayKey]);
+  }, [result, routine, todayKey, language]);
 
   return {
     week: views.week,

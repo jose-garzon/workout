@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/shared/db";
 import { setActiveLanguage, t } from "@/shared/i18n";
@@ -116,6 +116,19 @@ describe("useCalendar", () => {
 
     expect(result.current.month).toBe("Julio");
     // Mon 7 Jul 2025 is the first cell of the pinned week.
+    expect(result.current.week[0].label).toBe("Lun 7");
+  });
+
+  it("re-derives the month and day labels when the language changes at runtime", async () => {
+    const { result } = renderHook(() => useCalendar());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.month).toBe("July");
+
+    // The `views` memo holds translated strings and `t`'s identity is stable, so
+    // this only flips because `language` is one of its deps (design.md §D4).
+    act(() => setActiveLanguage("es"));
+
+    expect(result.current.month).toBe("Julio");
     expect(result.current.week[0].label).toBe("Lun 7");
   });
 

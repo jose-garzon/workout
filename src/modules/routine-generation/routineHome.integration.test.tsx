@@ -153,9 +153,13 @@ describe("RoutineHomeScreen — routine summary", () => {
     render(<RoutineHomeScreen {...PROPS} />);
 
     await screen.findByRole("link", { name: /Push/ });
-    expect(
-      screen.getByRole("button", { name: t("routine.summary.edit") }),
-    ).toBeInTheDocument();
+    const editButton = screen.getByRole("button", {
+      name: t("routine.summary.edit"),
+    });
+    expect(editButton).toBeInTheDocument();
+    // profile-page (tasks.md group 7): icon-only, no visible text — the
+    // accessible name comes from aria-label, not button text.
+    expect(editButton).toHaveTextContent("");
     expect(
       screen.queryByLabelText(t("composer.label")),
     ).not.toBeInTheDocument();

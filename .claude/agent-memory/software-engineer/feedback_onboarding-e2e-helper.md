@@ -11,15 +11,13 @@ verbatim between spec files. Its gender step uses
 hits "Female" → strict-mode violation, so onboarding never completes.
 
 **Why:** Playwright role-name matching is substring + case-insensitive by
-default; "Male" ⊂ "Female". Confirmed 2026-07-12 and again 2026-08-04:
-`routine-generation.spec.ts` still fails at this exact line on `main` — it is a
-standing pre-existing red in the `chromium` project, so don't read it as
-breakage from your own change.
+default; "Male" ⊂ "Female". Seen 2026-07-12, 2026-08-04, and **fixed in
+`routine-generation.spec.ts` on 2026-08-05** (it was the last copy still
+missing `exact: true`).
 
 **How to apply:** In any new e2e spec, use
 `getByRole("radio", { name: "Male", exact: true })`. Copying the helper as-is
-produces a *false red* (fails at the helper, not the feature under test). The
-existing broken specs (`routine-generation.spec.ts`, and any other that copied
-it) are worth flagging to fix — don't silently propagate the bug. Related:
-[[parallel-slice-boundaries]] — flag the breakage in others' files, don't
-necessarily fix them as part of an unrelated task.
+produces a *false red* (fails at the helper, not the feature under test). Fixing
+a one-word selector bug in an e2e spec while running the change's own gate was
+the right call — e2e specs are engineer-owned, so this is not crossing
+[[parallel-slice-boundaries]] (that rule is about other *roles'* files).

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import type { RefObject } from "react";
 import { useTranslation } from "@/shared/i18n";
-import { Button } from "@/shared/ui/primitives/Button";
 import type { Routine } from "../types";
 
 /**
@@ -104,15 +103,15 @@ export function RoutineSummary({
         <h3 id="routine-summary-heading" className="text-title-2">
           {routine.name}
         </h3>
-        <Button
+        <button
           ref={editButtonRef}
-          variant="secondary"
-          size="sm"
+          type="button"
           onClick={onEdit}
+          aria-label={t("routine.summary.edit")}
+          className="anim-press flex h-[var(--tap-target-min)] w-[var(--tap-target-min)] shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text"
         >
           <EditIcon />
-          {t("routine.summary.edit")}
-        </Button>
+        </button>
       </div>
       <ul className="flex flex-col gap-[var(--space-3)]">
         {routine.days.map((day, index) => (

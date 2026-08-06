@@ -480,6 +480,27 @@ test.describe("edit-routine", () => {
     expect(sent?.sessionSummary).toBeUndefined();
   });
 
+  /**
+   * profile-page (tasks.md group 7): the edit control is restyled to match the
+   * edit-profile affordance — icon-only, no visible text — while keeping its
+   * accessible name (`routine.summary.edit`) and its behaviour. RED until the
+   * restyle lands: today the button renders the visible word "Edit".
+   */
+  test("the edit control is icon-only, keeps its accessible name, and still opens the editor", async ({
+    page,
+  }) => {
+    await routeAi(page);
+    await seedRoutine(page);
+
+    const edit = page.getByRole("button", { name: "Edit", exact: true });
+    await expect(edit).toBeVisible();
+    // The accessible name now comes from a label, not from button text.
+    expect((await edit.innerText()).trim()).toBe("");
+
+    await edit.click();
+    await expect(page.getByLabel("Improve your routine")).toBeVisible();
+  });
+
   // ID preservation (tasks.md 7.7). Verifying "previous logged weight survives
   // an unrelated edit" end-to-end requires seeding real workout history — a full
   // log-a-set flow through workout mode, then an edit, then re-reading the

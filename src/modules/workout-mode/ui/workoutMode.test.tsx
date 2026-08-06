@@ -31,6 +31,9 @@ import { WorkoutModeBody } from "./WorkoutModeBody";
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+  // `AppShell` renders `ProfileLink`, which reads the current route to hide
+  // itself on /profile* (profile-page design.md D14) — not relevant here.
+  usePathname: () => "/workout/day-1",
 }));
 
 const { mockUseWorkoutSession } = vi.hoisted(() => ({

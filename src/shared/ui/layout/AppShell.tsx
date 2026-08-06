@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Logo } from "@/shared/ui/components/Logo";
-import { ThemeToggle } from "@/shared/ui/components/ThemeToggle";
+import { ProfileLink } from "@/shared/ui/components/ProfileLink";
 
 /**
  * The shared screen frame every feature's top-level screen renders inside:
@@ -10,9 +10,11 @@ import { ThemeToggle } from "@/shared/ui/components/ThemeToggle";
  * §2 "Layout & spacing rhythm" — workout mode never stretches into a wide
  * dashboard, and every other screen follows the same restraint), screen
  * padding 20px on phone / 32px from `sm` up, safe-area insets for notched
- * devices, and the persistent theme toggle in the header.
+ * devices, and a navigation entry to the profile page in the header
+ * (profile-page design.md D6 — replaces the theme toggle, which now lives
+ * only on `/profile`).
  *
- * The header shows only the `Logo` mark (left) and the theme toggle
+ * The header shows only the `Logo` mark (left) and the profile link
  * (right) — nothing else is visible there. The screen's `title` still
  * renders as a real `<h1>`, it's just visually hidden (`sr-only`): it
  * remains the page's one accessible name for screen-reader/AT users and
@@ -55,7 +57,7 @@ export function AppShell({ title, children, inert = false }: AppShellProps) {
       <header className="flex items-center justify-between gap-[var(--space-4)] pb-[var(--space-6)]">
         <Logo size="sm" />
         <h1 className="sr-only">{title}</h1>
-        <ThemeToggle />
+        <ProfileLink />
       </header>
       <main className="flex flex-1 flex-col gap-[var(--space-6)]">
         {children}

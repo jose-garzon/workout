@@ -1,9 +1,9 @@
 /**
  * The i18n substrate (i18n-spanish-support design.md §Decision 1/2/4): two
- * bundled dictionaries, one memoised language resolution, one pure `t`. No
- * library, no context, no storage, no fetch — `en.json`/`es.json` are imported,
- * so they ship in the bundle and language is derived from the browser and
- * stored nowhere (local-first).
+ * bundled dictionaries and one pure `t`. No library, no context, no fetch —
+ * `en.json`/`es.json` are imported, so they ship in the bundle (local-first).
+ * WHICH language is active lives in `languageStore.ts` (profile-page §D3); this
+ * file only reads it, so the direction is one-way and there is no cycle.
  *
  * A dependency LEAF: it imports nothing from the app, so `ui/`, `logic/` and
  * `api/` may all import it. React components use `useTranslation()`; pure
@@ -13,8 +13,7 @@
 
 import en from "./en.json";
 import es from "./es.json";
-
-export type Language = "en" | "es";
+import { activeLanguage, type Language } from "./languageStore";
 
 /** Every key of the reference dictionary — `t("typo.key")` is a tsc error. */
 export type TranslationKey = keyof typeof en;
@@ -42,40 +41,6 @@ export const DICTIONARIES: Record<
   Language,
   Partial<Record<TranslationKey, string>>
 > = { en, es };
-
-let active: Language | null = null;
-
-/**
- * `es-*` (any casing) -> "es"; everything else, including `undefined` -> "en".
- *
- * This `es`-prefix rule is DUPLICATED as a literal in the inline <head> script
- * in `src/app/layout.tsx`, which sets `<html lang>` before hydration and cannot
- * import a TS module — keep the two in sync by hand (the same accepted trade as
- * the "wp.theme" storage key).
- */
-export function resolveLanguage(tag: string | undefined): Language {
-  return tag?.toLowerCase().startsWith("es") ? "es" : "en";
-}
-
-/**
- * The page's language, resolved once from `navigator.language` and memoised for
- * the page's lifetime. Lazy: the first `t()` call always happens in the browser
- * (every translated string lives behind an `ssr:false` boundary), so there is no
- * boot step and no "not ready yet" state.
- */
-export function activeLanguage(): Language {
-  if (active === null) {
-    active = resolveLanguage(
-      typeof navigator === "undefined" ? undefined : navigator.language,
-    );
-  }
-  return active;
-}
-
-/** Test-only: force the language, or `null` to re-resolve. Never called in app code. */
-export function setActiveLanguage(language: Language | null): void {
-  active = language;
-}
 
 /**
  * Replace every `{token}` with its value. An UNPROVIDED token is left in place

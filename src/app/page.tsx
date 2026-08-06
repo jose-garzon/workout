@@ -1,10 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
 import { CalendarWeekStrip } from "@/modules/calendar/ui/CalendarWeekStrip";
 import type { Goals, Profile } from "@/modules/profile-goals";
-import { ProfileDrawer } from "@/modules/profile-goals/ui/ProfileDrawer";
 import { Splash } from "@/modules/profile-goals/ui/Splash";
 import { RoutineHomeScreen } from "@/modules/routine-generation/ui/RoutineHomeScreen";
 import { useSessionSummary } from "@/modules/workout-mode";
@@ -29,42 +27,31 @@ const FirstRunGate = dynamic(
 );
 
 /**
- * The `home` slot's own client wrapper (edit-profile design.md D6) — owns
- * the profile editor's open/closed state (UI-local, not part of any seam)
- * and mounts `ProfileDrawer` as a SIBLING of `RoutineHomeScreen`, not a
- * child, the same reasoning `RoutineEditor` sits beside `AppShell`: the
- * drawer must stay reachable even while the shell underneath is dimmed/inert.
+ * The `home` slot's own client wrapper — the one piece of wiring home needs
+ * that the gate cannot supply. Profile editing is NOT here any more
+ * (profile-page design.md §D10): the drawer is gone and editing lives on its own
+ * route, reached through the header's profile entry.
  */
 function Home({ profile, goals }: { profile: Profile; goals: Goals | null }) {
-  const [editOpen, setEditOpen] = useState(false);
   // The on-device history summary threaded into an AI edit (routine-edit-history
   // design.md §Decision 4): a plain `string | null` from workout-mode's barrel —
   // no D type crosses into routine-generation, keeping the graph acyclic.
   const sessionSummary = useSessionSummary();
 
   return (
-    <>
-      <RoutineHomeScreen
-        displayName={profile.displayName}
-        focus={goals?.focus ?? "general"}
-        daysPerWeek={goals?.daysPerWeek ?? 3}
-        gender={profile.gender}
-        age={profile.age}
-        bodyweightKg={profile.bodyweightKg}
-        heightCm={profile.heightCm}
-        unit={profile.unit}
-        notes={goals?.notes}
-        weekStrip={<CalendarWeekStrip />}
-        onEditProfile={() => setEditOpen(true)}
-        sessionSummary={sessionSummary}
-      />
-      <ProfileDrawer
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        profile={profile}
-        goals={goals}
-      />
-    </>
+    <RoutineHomeScreen
+      displayName={profile.displayName}
+      focus={goals?.focus ?? "general"}
+      daysPerWeek={goals?.daysPerWeek ?? 3}
+      gender={profile.gender}
+      age={profile.age}
+      bodyweightKg={profile.bodyweightKg}
+      heightCm={profile.heightCm}
+      unit={profile.unit}
+      notes={goals?.notes}
+      weekStrip={<CalendarWeekStrip />}
+      sessionSummary={sessionSummary}
+    />
   );
 }
 
