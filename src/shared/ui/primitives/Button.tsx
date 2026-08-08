@@ -13,8 +13,12 @@ import { forwardRef } from "react";
  * - `primary` — the ONE full-saturation accent fill per screen (usually the
  *   single primary CTA, `size="lg"`). Near-black `on-accent` text, never
  *   white (design-system.md §3.1 — white on this accent fails at 1.12:1).
- * - `secondary` — outline in `border`, transparent fill, for every other
- *   action on the same screen (keeps "one accent per screen" strict).
+ * - `secondary` — outline in `border-strong`, transparent fill, for every
+ *   other action on the same screen (keeps "one accent per screen" strict).
+ *   Uses `border-strong`, not the hairline `border`, because a control's
+ *   only boundary needs 3:1 (SC 1.4.11) and the hairline measures ~1.1:1
+ *   (design-system.md §3.1, `border-strong` token, pwa-install-banner
+ *   design.md §D9).
  */
 
 export type ButtonVariant = "primary" | "secondary";
@@ -29,7 +33,8 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
     "bg-accent text-on-accent border border-transparent hover:opacity-90",
-  secondary: "bg-transparent text-text border border-border hover:bg-surface",
+  secondary:
+    "bg-transparent text-text border border-border-strong hover:bg-surface",
 };
 
 export interface ButtonProps

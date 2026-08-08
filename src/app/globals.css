@@ -28,6 +28,7 @@
   --color-text: var(--color-text);
   --color-text-muted: var(--color-text-muted);
   --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
   --color-accent: var(--color-accent);
   --color-accent-text: var(--color-accent-text);
   --color-accent-wash: var(--color-accent-wash);

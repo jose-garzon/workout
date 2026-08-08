@@ -275,6 +275,7 @@ is new: **Electric Yellow `#E8FF3D`**, resolved in §4.1.
 | `text` | `#0B0B0B` | primary ink |
 | `text-muted` | `#52514E` | secondary ink |
 | `border` | `rgba(11,11,11,0.10)` | hairline |
+| `border-strong` | `#52514E` | the ONLY boundary of a control (e.g. a `secondary` button's outline) — the hairline `border` measures ~1.1:1 here, short of the 3:1 SC 1.4.11 needs for a non-decorative border; same hex as `text-muted` |
 | `accent` | `#E8FF3D` | primary action fills, active/selected state — used ONCE per screen |
 | `accent-text` | `#667200` | accent used as bare text/icon/link — the raw hue fails on near-white (1.06:1), so this is a darkened same-hue variant |
 | `accent-wash` | `rgba(232,255,61,0.14)` over `background`/`surface` | low-alpha tint for secondary "selected" states, never the primary CTA |
@@ -296,6 +297,7 @@ is new: **Electric Yellow `#E8FF3D`**, resolved in §4.1.
 | `text` | `#FFFFFF` | primary ink |
 | `text-muted` | `#C3C2B7` | secondary ink |
 | `border` | `rgba(255,255,255,0.10)` | hairline |
+| `border-strong` | `#C3C2B7` | the ONLY boundary of a control — same rationale/pairing as light's `border-strong`; same hex as `text-muted` |
 | `accent` | `#E8FF3D` | same hex as light — see rationale below |
 | `accent-text` | `#E8FF3D` | same hex works directly as text on dark (13.9–17.4:1) — no darkened variant needed here |
 | `accent-wash` | `rgba(232,255,61,0.10)` over `background`/`surface` | slightly lower alpha than light (composited result stays legible — see contrast note) |
@@ -321,8 +323,10 @@ within a narrow brightness range. One less thing to keep in sync now.
 | `text` on `background` (light) | 18.67:1 | pass |
 | `text` on `surface` (light) | 19.17:1 | pass |
 | `text-muted` on `background` (light) | 7.53:1 | pass |
+| `border-strong` (`#52514E`) on `background`/`surface` (light) | 7.53:1 | pass — reuses `text-muted`'s measured pair, well clear of the 3:1 non-text floor |
 | `text` on `background` (dark) | 19.44:1 | pass |
 | `text-muted` on `background` (dark) | 10.85:1 | pass |
+| `border-strong` (`#C3C2B7`) on `background`/`surface` (dark) | 10.85:1 | pass — reuses `text-muted`'s measured pair |
 | `text` on `elevated-surface` (dark) | 15.55:1 | pass |
 | `on-accent` (`#0B0B0B`) on `accent` (`#E8FF3D`) | 17.62:1 | pass, huge margin |
 | **white on `accent`** (`#E8FF3D`) | **1.12:1** | **fails hard** — this is *why* `on-accent` is near-black, not white, unlike every other filled-button pattern people default to |

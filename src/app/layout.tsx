@@ -46,6 +46,26 @@ const NO_FLASH_THEME_SCRIPT = `
 `;
 
 /**
+ * Early capture of `beforeinstallprompt` (design.md §D3). The event fires ONCE,
+ * is never replayed, and Chromium commonly fires it before home mounts (home
+ * sits behind `dynamic(ssr:false)` + a Dexie profile read), so a listener
+ * registered at mount can miss it and the install button would never appear.
+ * `preventDefault()` suppresses the browser's own mini-infobar; the event is
+ * stashed for `useInstallPrompt` to pick up and later `prompt()`.
+ *
+ * The global name `__wpInstallPrompt` is duplicated as a literal in
+ * shared/ui/install/useInstallPrompt.ts, which this script cannot import. Keep
+ * both in sync by hand — same hazard as the three literals above.
+ */
+const CAPTURE_INSTALL_PROMPT_SCRIPT = `
+window.__wpInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  window.__wpInstallPrompt = e;
+});
+`;
+
+/**
  * Root layout — the static app shell (server component).
  *
  * Preloads the two hot self-hosted faces (Barlow 400, Anton 400 — design.md
@@ -65,6 +85,10 @@ export default function RootLayout({
         <script
           // biome-ignore lint/security/noDangerouslySetInnerHtml: static, no user input — the no-flash theme resolver must run inline before hydration.
           dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME_SCRIPT }}
+        />
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: static, no user input — `beforeinstallprompt` fires once and must be captured before any module loads.
+          dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALL_PROMPT_SCRIPT }}
         />
         <link
           rel="preload"

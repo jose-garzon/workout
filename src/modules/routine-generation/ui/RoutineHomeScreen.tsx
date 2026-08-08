@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRoutineEdit } from "@/modules/routine-generation";
 import { type TranslationKey, useTranslation } from "@/shared/i18n";
 import { GoalBadge } from "@/shared/ui/components/GoalBadge";
+import { InstallBanner } from "@/shared/ui/components/InstallBanner";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
 import { useActiveRoutine } from "../logic/useActiveRoutine";
@@ -155,6 +156,8 @@ export function RoutineHomeScreen({
   return (
     <>
       <AppShell title={t("home.title")} inert={editBusy}>
+        <InstallBanner />
+
         {/* Identity block: greeting + goal + motivational line. `AppShell`'s
           own `<h1>{title}</h1>` is `sr-only` (the header shows only the Logo
           + profile link), so this `<h2>` is the screen's one VISIBLE

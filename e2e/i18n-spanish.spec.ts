@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import es from "../src/shared/i18n/es.json" with { type: "json" };
 
 /**
  * i18n-spanish-support — Story 4 end to end, in the `spanish` Playwright project
@@ -18,7 +19,19 @@ import { expect, type Page, test } from "@playwright/test";
  *
  * The Spanish strings asserted here are the contract for `es.json`; keep the
  * dictionary and this spec in step.
+ *
+ * The install banner's strings (pwa-install-banner design §D6) are the one
+ * exception: they are read out of `es.json` rather than written as literals,
+ * because that dictionary is the only thing that can prove they were localized
+ * at all — the banner has no other Spanish-visible surface.
  */
+
+/**
+ * An `es.json` value, falling back to the key while the `install.*` strings are
+ * still unwritten (task 2.1, designer) — a missing key then matches nothing, so
+ * the failure reads as "banner not found".
+ */
+const s = (key: string): string => (es as Record<string, string>)[key] ?? key;
 
 const ROUTINE = {
   name: "Empuje / Tirón / Pierna",
@@ -95,6 +108,13 @@ test("the whole experience is Spanish: onboarding → generation → workout mod
     .toBe("es");
 
   await completeOnboarding(page);
+
+  // The install banner is on home in Spanish (pwa-install-banner AC
+  // "Localization"). Desktop Chromium never fires `beforeinstallprompt`, so
+  // this is the generic `manual` state: title + description, no button.
+  const installBanner = page.getByRole("region", { name: s("install.title") });
+  await expect(installBanner).toBeVisible();
+  await expect(installBanner).toContainText(s("install.description.manual"));
 
   // The generate request carries the active language (AC3.1); the proxy is
   // stubbed with a Spanish routine (AC3.2).
