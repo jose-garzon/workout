@@ -26,6 +26,20 @@ export interface RoutineDay {
   exercises: Exercise[];
 }
 
+/** How a day card renders on home. `next` wins over `finished` on the same day. */
+export type DayState = "idle" | "next" | "finished";
+
+/** One day row, ready to render. The UI does no math and no sorting. */
+export interface DayCard {
+  /** Routine day id — the `/workout/[dayId]` href. */
+  id: string;
+  name: string;
+  /** 1-based ROUTINE position — renders as "01"…"05". NOT the list index. */
+  position: number;
+  exerciseCount: number;
+  state: DayState;
+}
+
 /**
  * The active routine. Only ONE may be active at a time (invariant enforced in
  * `logic/model`). `days.length` derives the weekly session target.

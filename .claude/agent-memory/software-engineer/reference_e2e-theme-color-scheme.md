@@ -31,3 +31,10 @@ field added a step the recorded tap sequence doesn't account for) and
 `e2e/offline.offline.spec.ts` (offline reload gets `net::ERR_FAILED`; the SW is
 not serving the cached shell). Confirm with a `git worktree add <dir> HEAD`
 before assuming a red is yours — it is cheap and decisive.
+
+Re-confirmed 2026-08-08: "guide a full session" is still red (now failing at the
+overtime `/Time.?s up/i` assertion). It navigates straight to `/workout/<dayId>`
+and never touches home, so home-list changes cannot be the cause. The standing
+**unit** red at that date was `profile-goals/ui/ProfileScreen.test.tsx`
+("renders the name more prominently than the title" — expects `text-display`,
+gets `text-title-1`); everything else in `bun run test` was green.

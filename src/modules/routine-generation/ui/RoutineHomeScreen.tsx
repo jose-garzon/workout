@@ -9,6 +9,7 @@ import { InstallBanner } from "@/shared/ui/components/InstallBanner";
 import { AppShell } from "@/shared/ui/layout/AppShell";
 import { Button } from "@/shared/ui/primitives/Button";
 import { useActiveRoutine } from "../logic/useActiveRoutine";
+import { useDayCycle } from "../logic/useDayCycle";
 import { useRoutineGeneration } from "../logic/useRoutineGeneration";
 import { BuildingIndicator } from "./BuildingIndicator";
 import { Composer } from "./Composer";
@@ -85,6 +86,9 @@ export function RoutineHomeScreen({
 }: RoutineHomeScreenProps) {
   const { t } = useTranslation();
   const { routine: active } = useActiveRoutine();
+  // The day list, pre-ordered with `next` first (highlight-next-workout-day
+  // design.md §D3) — the summary renders these and does no math of its own.
+  const { days } = useDayCycle();
   const { status, progressMessage, error, generate, confirmSave, reset } =
     useRoutineGeneration();
   // The composer is remounted (via `composerKey`) whenever the example
@@ -185,6 +189,7 @@ export function RoutineHomeScreen({
           {active ? (
             <RoutineSummary
               routine={active}
+              days={days}
               onEdit={() => setEditorOpen(true)}
               editButtonRef={editButtonRef}
             />

@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,25 +42,33 @@ const PROPS = {
   unit: "metric" as const,
 };
 
+const CREATED_AT = 1_000_000;
+
+function day(id: string, name: string) {
+  return {
+    id,
+    name,
+    exercises: [
+      {
+        id: crypto.randomUUID(),
+        name: "Bench",
+        sets: [{ reps: 8, restSeconds: 120 }],
+      },
+    ],
+  };
+}
+
 function routine(name = "PPL"): Routine {
   return {
     id: crypto.randomUUID(),
     name,
     subtitle: `${name} — let's go`,
-    createdAt: Date.now(),
+    createdAt: CREATED_AT,
     active: true,
     days: [
-      {
-        id: "day-push",
-        name: "Push",
-        exercises: [
-          {
-            id: crypto.randomUUID(),
-            name: "Bench",
-            sets: [{ reps: 8, restSeconds: 120 }],
-          },
-        ],
-      },
+      day("day-push", "Push"),
+      day("day-pull", "Pull"),
+      day("day-legs", "Legs"),
     ],
   };
 }
@@ -69,7 +78,7 @@ afterEach(cleanup);
 beforeEach(async () => {
   useGenerationStore.getState().reset();
   useEditStore.getState().reset();
-  await db.routines.clear();
+  await Promise.all([db.routines.clear(), db.completedSessions.clear()]);
 });
 
 describe("Composer", () => {
@@ -163,6 +172,51 @@ describe("RoutineHomeScreen — routine summary", () => {
     expect(
       screen.queryByLabelText(t("composer.label")),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("RoutineHomeScreen — day cycle order", () => {
+  /** The day list in render order, by href. The `next` card is first (design.md
+   *  §D3); each card's STATE copy is asserted in the `RoutineSummary` component
+   *  test, which owns it — here the seam's contribution is the order. */
+  const dayHrefs = () =>
+    screen
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"))
+      .filter((href) => href?.startsWith("/workout/"));
+
+  it("puts day 1 first on a fresh routine", async () => {
+    await saveActive(routine());
+    render(<RoutineHomeScreen {...PROPS} />);
+
+    await screen.findByRole("link", { name: /Push/ });
+    expect(dayHrefs()).toEqual([
+      "/workout/day-push",
+      "/workout/day-pull",
+      "/workout/day-legs",
+    ]);
+  });
+
+  it("re-emits with day 2 first once day 1 is completed", async () => {
+    await saveActive(routine());
+    render(<RoutineHomeScreen {...PROPS} />);
+    await screen.findByRole("link", { name: /Push/ });
+
+    await db.completedSessions.put({
+      id: "s1",
+      routineId: "active",
+      dayId: "day-push",
+      completedAt: CREATED_AT + 1,
+      exerciseLogs: [],
+    });
+
+    await waitFor(() =>
+      expect(dayHrefs()).toEqual([
+        "/workout/day-pull",
+        "/workout/day-push",
+        "/workout/day-legs",
+      ]),
+    );
   });
 });
 

@@ -139,6 +139,8 @@
   "routine.summary.edit": "Editar",
   "routine.summary.exercises.one": "1 ejercicio",
   "routine.summary.exercises.other": "{count} ejercicios",
+  "routine.summary.state.finished": "Completado",
+  "routine.summary.state.next": "Siguiente",
   "welcome.description": "Sin cuenta, sin nube: cada serie, repetición y marca personal se queda aquí, en tu teléfono.",
   "welcome.start": "Empezar",
   "welcome.tagline": "Entrena más duro. Registra todo.",

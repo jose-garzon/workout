@@ -139,6 +139,8 @@
   "routine.summary.edit": "Edit",
   "routine.summary.exercises.one": "1 exercise",
   "routine.summary.exercises.other": "{count} exercises",
+  "routine.summary.state.finished": "Completed",
+  "routine.summary.state.next": "Next",
   "welcome.description": "No account, no cloud — every set, rep, and PR stays right here on your phone.",
   "welcome.start": "Start",
   "welcome.tagline": "Train harder. Track everything.",

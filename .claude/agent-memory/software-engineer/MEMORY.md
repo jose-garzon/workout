@@ -3,4 +3,5 @@
 - [Onboarding e2e helper bug](feedback_onboarding-e2e-helper.md) — copied completeOnboarding helper's "Male" radio substring-matches "Female"; use exact:true
 - [E2E theme color scheme](reference_e2e-theme-color-scheme.md) — Playwright boots the app LIGHT; pin colorScheme:"dark". Plus the standing pre-existing e2e reds
 - [E2E dev-server reuse](reference_e2e-dev-server-reuse.md) — a running `next dev` on :3000 gets reused and fakes ~15 e2e reds; run the gate on a free port
+- [useLiveQuery stale deps](reference_uselivequery-stale-deps.md) — it returns the PREVIOUS result after deps change; stamp the dep and treat a mismatch as loading
 - [E2E JSON imports](reference_e2e-json-imports.md) — Playwright specs need `with { type: "json" }`; without it the file silently collects as "No tests found"
