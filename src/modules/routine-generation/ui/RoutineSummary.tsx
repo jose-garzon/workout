@@ -97,10 +97,10 @@ function ChevronIcon({ className }: { className?: string }) {
 }
 
 /**
- * Row styling per state (design.md §D4, DECIDED). `next` and `finished` both
- * sit on `accent-wash` — the three non-colour separators below (border, size
- * step, eyebrow) are what keep them apart, each asserted in the component
- * test:
+ * Row styling per state (design.md §D4). `accent-wash` is now `finished`'s
+ * alone — `next` sits on the default `surface` like `idle`, because two
+ * washed rows read as the same state at a glance. `next` stays the loudest
+ * row through three non-fill separators, each asserted in the component test:
  * 1. Border — `next` gets a solid `accent-text` border, `finished` keeps the
  *    plain `border-border` hairline (same as `idle`).
  * 2. Size — `next` steps up to `--space-11` min-height and `--space-5`
@@ -114,7 +114,7 @@ function rowClassName(state: DayCard["state"]): string {
   const shared =
     "anim-press group flex items-center gap-[var(--space-4)] px-[var(--space-5)] transition-colors";
   if (state === "next") {
-    return `${shared} min-h-[var(--space-11)] border border-accent-text bg-accent-wash py-[var(--space-5)]`;
+    return `${shared} min-h-[var(--space-11)] border border-accent-text bg-surface py-[var(--space-5)] hover:bg-elevated-surface`;
   }
   if (state === "finished") {
     return `${shared} min-h-[var(--control-height-lg)] border border-border bg-accent-wash py-[var(--space-4)] hover:border-text`;
