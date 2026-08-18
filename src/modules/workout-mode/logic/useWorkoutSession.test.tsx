@@ -146,6 +146,7 @@ describe("finish sequence (§D5)", () => {
         currentExerciseIndex: 1,
         anchorTs: 2_000_000,
         enteredWeightKg: 80,
+        enteredReps: 5,
         exerciseLogs: [
           {
             exerciseId: "e1",
@@ -264,6 +265,135 @@ describe("reps default (progressive overload)", () => {
 
     // e1's plan reps is 8 (seedRoutine).
     await waitFor(() => expect(result.current.reps).toBe(8));
+  });
+});
+
+describe("missingSetFields (the start gate)", () => {
+  it("lists reps before weight, shrinks as each is filled, and agrees with canStartSet", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+    await waitFor(() => expect(result.current.reps).toBe(8));
+
+    // Both empty → both listed, reps first (focus order).
+    act(() => result.current.setReps(null));
+    expect(result.current.missingSetFields).toEqual(["reps", "weight"]);
+    expect(result.current.canStartSet).toBe(false);
+
+    act(() => result.current.setWeight(60));
+    expect(result.current.missingSetFields).toEqual(["reps"]);
+    expect(result.current.canStartSet).toBe(false);
+
+    act(() => result.current.setReps(8));
+    expect(result.current.missingSetFields).toEqual([]);
+    expect(result.current.canStartSet).toBe(true);
+  });
+
+  it("is empty outside the ready phase — nothing is armed to block", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    // Resume mid-work with neither field entered.
+    await saveInProgress(
+      persistedSession({ phase: "work", anchorTs: 1_000_000 }),
+    );
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("in-progress"));
+
+    expect(result.current.timer.phase).toBe("work");
+    expect(result.current.reps).toBeNull();
+    expect(result.current.weight).toBeNull();
+    expect(result.current.missingSetFields).toEqual([]);
+    expect(result.current.canStartSet).toBe(false);
+  });
+
+  it("refuses to start the set while reps are empty", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+    await waitFor(() => expect(result.current.reps).toBe(8));
+    act(() => {
+      result.current.setWeight(60);
+      result.current.setReps(null);
+    });
+
+    await act(async () => {
+      await result.current.tap();
+    });
+    expect(result.current.timer.phase).toBe("ready");
+  });
+
+  it("lets every set of a first-ever session start: reps prefill from the plan per set index", async () => {
+    await seedProfile("metric");
+    // A two-set exercise with DIFFERENT reps per set, and no session history.
+    await db.routines.put({
+      id: ROUTINE_ID,
+      name: "PPL",
+      createdAt: 0,
+      active: true,
+      days: [
+        {
+          id: "d1",
+          name: "Push",
+          exercises: [
+            {
+              id: "e1",
+              name: "Bench",
+              sets: [
+                { reps: 8, restSeconds: 120 },
+                { reps: 6, restSeconds: 120 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+
+    // Set 1: reps come from the plan, weight is the only thing the user enters.
+    await waitFor(() => expect(result.current.reps).toBe(8));
+    expect(result.current.missingSetFields).toEqual(["weight"]);
+    act(() => result.current.setWeight(60));
+    expect(result.current.missingSetFields).toEqual([]);
+    expect(result.current.canStartSet).toBe(true);
+
+    await act(async () => {
+      await result.current.tap(); // ready → work
+    });
+    vi.setSystemTime(1_030_000);
+    await act(async () => {
+      await result.current.tap(); // work → rest
+    });
+    vi.setSystemTime(1_060_000);
+    await act(async () => {
+      await result.current.tap(); // rest → ready (set 2)
+    });
+
+    // Set 2 arms with the plan's reps for INDEX 1 and the carried-over weight,
+    // so nothing blocks it.
+    await waitFor(() => expect(result.current.reps).toBe(6));
+    expect(result.current.weight).toBe(60);
+    expect(result.current.missingSetFields).toEqual([]);
+    expect(result.current.canStartSet).toBe(true);
   });
 });
 

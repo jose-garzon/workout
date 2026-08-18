@@ -24,13 +24,13 @@ Without it the failure reads as a theme bug when the app is behaving correctly �
 it is the *spec's* assumption that is wrong. See
 [[integration-test-placement]] for the other gate gotcha in this repo.
 
-**Known standing e2e reds (verified pre-existing at HEAD on 2026-08-05, in a
-clean worktree — do not attribute them to your change):**
-`e2e/workout-mode.spec.ts` "guide a full session" (the session screen's Reps
-field added a step the recorded tap sequence doesn't account for) and
+**Known standing e2e reds (do not attribute them to your change):**
 `e2e/offline.offline.spec.ts` (offline reload gets `net::ERR_FAILED`; the SW is
-not serving the cached shell). Confirm with a `git worktree add <dir> HEAD`
-before assuming a red is yours — it is cheap and decisive.
+not serving the cached shell). `e2e/workout-mode.spec.ts` "guide a full session"
+was the other one — **fixed 2026-08-15**, see [[e2e-stopwatch-taps]]; the whole
+chromium project ran 70 passed / 0 failed that day. Confirm with a
+`git worktree add <dir> HEAD` before assuming a red is yours — it is cheap and
+decisive.
 
 Re-confirmed 2026-08-08: "guide a full session" is still red (now failing at the
 overtime `/Time.?s up/i` assertion). It navigates straight to `/workout/<dayId>`

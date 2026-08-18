@@ -27,3 +27,23 @@ takes ~1 min on a free port.
 Verified 2026-08-05 during the profile-page rework: 15 failures on :3000 (dev)
 vs. 39 passed / 2 failed (the known standing reds) on a private prod build. See
 [[e2e-theme-color-scheme]] for those standing reds.
+
+**Worse (2026-08-15): a live `next dev` also OWNS `.next`.** `bun run build` in
+the repo then dies with `ENOENT .next/server/pages-manifest.json`, or "succeeds"
+and is clobbered a minute later, which shows up as an entire screen failing to
+render in e2e. Build from an isolated copy instead:
+
+```bash
+rsync -a --exclude node_modules --exclude .next --exclude .git <repo>/ $GATE/
+ln -s <repo>/node_modules $GATE/node_modules
+cd $GATE && bun run build      # then webServer.command: cd $GATE && bun run start --port 3100
+```
+
+Keep `testDir` pointed at the real `e2e/` (specs only need `baseURL`).
+
+**Always confirm :3100 is free before each run.** Playwright leaves its
+`next start` behind on failure; the next run either errors with "port already
+used" or silently runs against the *stale* build and produces a cascade of
+`chrome-error://chromewebdata/` failures in specs you never touched (seen:
+14 bogus reds that were 0 on a clean run). `pkill -f "next start --port 3100"` in
+a wait loop until `ss -ltn | grep :3100` is empty.

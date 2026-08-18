@@ -4,4 +4,5 @@
 - [E2E theme color scheme](reference_e2e-theme-color-scheme.md) — Playwright boots the app LIGHT; pin colorScheme:"dark". Plus the standing pre-existing e2e reds
 - [E2E dev-server reuse](reference_e2e-dev-server-reuse.md) — a running `next dev` on :3000 gets reused and fakes ~15 e2e reds; run the gate on a free port
 - [useLiveQuery stale deps](reference_uselivequery-stale-deps.md) — it returns the PREVIOUS result after deps change; stamp the dep and treat a mismatch as loading
+- [E2E stopwatch taps](reference_e2e-stopwatch-taps.md) — lost-tap race FIXED 2026-08-15; a blocked (aria-disabled) clock needs click({ force: true })
 - [E2E JSON imports](reference_e2e-json-imports.md) — Playwright specs need `with { type: "json" }`; without it the file silently collects as "No tests found"

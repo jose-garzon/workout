@@ -18,6 +18,7 @@ import type {
   OverviewExercise,
   SeriesView,
   SessionStatus,
+  SetField,
   TimerView,
 } from "../types";
 import {
@@ -42,6 +43,7 @@ export type {
   OverviewExercise,
   SeriesView,
   SessionStatus,
+  SetField,
   TimerPhase,
   TimerView,
 } from "../types";
@@ -71,7 +73,13 @@ export interface WorkoutSessionApi {
   /** Reps for the CURRENT set — auto-defaulted to the previous session's reps at this set index (or the plan's), editable for progressive overload. */
   reps: number | null;
   setReps: (value: number | null) => void;
-  /** True when the armed set can be started — `ready` phase + a weight entered (§D12). */
+  /**
+   * Required fields of the ARMED set that are still empty, in focus order
+   * (reps before weight). `[]` when the set can start, and ALWAYS `[]`
+   * outside the `ready` phase — nothing is armed to block.
+   */
+  missingSetFields: SetField[];
+  /** True when the armed set can be started — `ready` phase + reps and weight entered. */
   canStartSet: boolean;
   timer: TimerView;
   /** The CURRENT exercise's finished sets, in order, in DISPLAY units — for a per-set progress list (§D1 revised). */
@@ -268,9 +276,14 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     const store = useWorkoutStore.getState();
     const s = store.session;
     if (!s || !day || s.phase === "exercise-complete") return;
-    // Tap-to-start needs a weight for the set (§D12) — no-op otherwise; the UI
-    // surfaces the requirement via `canStartSet`.
-    if (s.phase === "ready" && s.enteredWeightKg === null) return;
+    // Tap-to-start needs both reps and a weight for the set — no-op otherwise;
+    // the UI surfaces which is missing via `missingSetFields`.
+    if (
+      s.phase === "ready" &&
+      (s.enteredWeightKg === null || s.enteredReps === null)
+    ) {
+      return;
+    }
 
     const now = Date.now();
     const next = applyTap(s, day, now);
@@ -295,8 +308,10 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
       return;
     }
 
-    await saveInProgress(next);
+    // Commit BEFORE persisting: a second tap landing during the IDB write would
+    // otherwise read the stale session off the store and be silently dropped.
     store.setSession(next);
+    await saveInProgress(next);
   }, [day]);
 
   const nextExercise = useCallback(async () => {
@@ -369,8 +384,16 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
   const previousWeight =
     previousWeightKg == null ? null : kgToDisplay(previousWeightKg, unit);
   const reps = session?.enteredReps ?? null;
+  /* Only an ARMED set can be blocked, so this is empty outside `ready`. */
+  const missingSetFields: SetField[] = [];
+  if (status === "in-progress" && timer.phase === "ready") {
+    if (reps === null) missingSetFields.push("reps");
+    if (weight === null) missingSetFields.push("weight");
+  }
   const canStartSet =
-    status === "in-progress" && timer.phase === "ready" && weight !== null;
+    status === "in-progress" &&
+    timer.phase === "ready" &&
+    missingSetFields.length === 0;
   /* The current exercise's finished sets in display units; resets automatically
      on `nextExercise` (advanceExercise clears `currentSeries`). */
   const completedSets: SeriesView[] =
@@ -392,6 +415,7 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     previousWeight,
     reps,
     setReps,
+    missingSetFields,
     canStartSet,
     timer,
     completedSets,

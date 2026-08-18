@@ -83,6 +83,9 @@ describe("full session (§D3–§D5, no network)", () => {
     expect(result.current.currentExercise?.id).toBe("e1");
 
     act(() => result.current.setWeight(60));
+    // Reps auto-fill from the plan (no history); the set cannot start until they do.
+    await waitFor(() => expect(result.current.reps).toBe(8));
+    expect(result.current.missingSetFields).toEqual([]);
 
     // Armed → tap to START series 1 (§D12).
     await act(async () => {
@@ -109,7 +112,12 @@ describe("full session (§D3–§D5, no network)", () => {
     });
     expect(result.current.timer.phase).toBe("ready");
 
-    // Weight carries over; tap to START series 2.
+    // Weight carries over, reps re-default for the new set index — and the user
+    // bumps them to 10, which is what the record must store.
+    await waitFor(() => expect(result.current.reps).toBe(8));
+    act(() => result.current.setReps(10));
+
+    // Tap to START series 2.
     await act(async () => {
       await result.current.tap();
     });
@@ -129,6 +137,7 @@ describe("full session (§D3–§D5, no network)", () => {
     });
     expect(result.current.currentExercise?.id).toBe("e2");
     act(() => result.current.setWeight(80));
+    await waitFor(() => expect(result.current.reps).toBe(5));
 
     // Armed → tap to START, then finish on the single series.
     await act(async () => {
@@ -151,7 +160,8 @@ describe("full session (§D3–§D5, no network)", () => {
         name: "Bench",
         series: [
           { reps: 8, weightKg: 60, workSeconds: 40, volumeKg: 480 }, // 60 × 8
-          { reps: 8, weightKg: 60, workSeconds: 50, volumeKg: 480 },
+          // The reps the user CONFIRMED for series 2, not the plan's 8.
+          { reps: 10, weightKg: 60, workSeconds: 50, volumeKg: 600 },
         ],
         restSeconds: 130, // aggregate across the one inter-set rest
       },
@@ -189,6 +199,7 @@ describe("reload resume (§D4)", () => {
       await first.result.current.start();
     });
     act(() => first.result.current.setWeight(72.5));
+    await waitFor(() => expect(first.result.current.reps).toBe(8));
     // Tap to START series 1, then end it → rest.
     await act(async () => {
       await first.result.current.tap();

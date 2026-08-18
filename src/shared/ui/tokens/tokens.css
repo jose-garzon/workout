@@ -95,6 +95,14 @@
      is just an offset gap, not a second color. ---- */
   --focus-ring:
     0 0 0 2px var(--color-background), 0 0 0 4px var(--color-accent);
+  /* An errored field's ring (clock-button-empty-field-error): same 2px/4px
+     geometry, outer stroke swapped from accent to `--color-danger-text`
+     (5.71:1 on dark `background`, comfortably above the 3:1 SC 1.4.11 floor
+     for a non-text UI component) — accent reads "good to go" everywhere else
+     in this system, so ringing an EMPTY required field in it says the
+     opposite of what's true. Inner gap color is unchanged from `--focus-ring`. */
+  --focus-ring-danger:
+    0 0 0 2px var(--color-background), 0 0 0 4px var(--color-danger-text);
 }
 
 [data-theme="light"] {
@@ -129,4 +137,9 @@
      light `background`, nowhere near the 3:1 SC 1.4.11 needs — the inner
      `on-accent` ring does the contrast work (18.67:1). ---- */
   --focus-ring: 0 0 0 2px var(--color-on-accent), 0 0 0 4px var(--color-accent);
+  /* Same danger-ring swap as dark (see `:root`); on light `--color-danger-text`
+     equals `--color-danger` (#D03B3B), which already measures 4.56:1 on
+     light `background` — well past the 3:1 floor. Inner gap unchanged. */
+  --focus-ring-danger:
+    0 0 0 2px var(--color-on-accent), 0 0 0 4px var(--color-danger-text);
 }

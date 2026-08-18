@@ -130,6 +130,7 @@ function fakeApi(
     previousWeight: null,
     reps: null,
     setReps: vi.fn(),
+    missingSetFields: [],
     canStartSet: true,
     timer: WORK_TIMER,
     completedSets: [],
@@ -397,6 +398,178 @@ describe("ExerciseView — reps field (progressive-overload default)", () => {
     expect(
       screen.getByLabelText(t("workout.exercise.repsLabel"), { exact: false }),
     ).toBeDisabled();
+  });
+});
+
+describe("ExerciseView — blocked-tap field errors (clock-button-empty-field-error)", () => {
+  // `selector: "input"` — the reworded blocked-stopwatch aria-label now names
+  // both fields too ("Enter reps and weight to start…"), so an unscoped
+  // `getByLabelText` also matches the button; same substring-collision class
+  // the e2e spec's own `repsField`/`weightField` comment calls out.
+  const repsField = () =>
+    screen.getByLabelText(t("workout.exercise.repsLabel"), {
+      exact: false,
+      selector: "input",
+    }) as HTMLInputElement;
+  const weightField = () =>
+    screen.getByLabelText(t("workout.exercise.weightLabel"), {
+      exact: false,
+      selector: "input",
+    }) as HTMLInputElement;
+
+  it("both fields empty: a blocked tap reddens both and focuses reps first", () => {
+    const tap = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: READY_TIMER,
+          reps: null,
+          weight: null,
+          missingSetFields: ["reps", "weight"],
+          canStartSet: false,
+          tap,
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(repsField()).toHaveAttribute("aria-invalid", "true");
+    expect(weightField()).toHaveAttribute("aria-invalid", "true");
+    expect(repsField()).toHaveFocus();
+    expect(tap).not.toHaveBeenCalled();
+  });
+
+  it("only weight missing: errors and focuses weight, leaves reps untouched", () => {
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: READY_TIMER,
+          reps: 8,
+          weight: null,
+          missingSetFields: ["weight"],
+          canStartSet: false,
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(weightField()).toHaveAttribute("aria-invalid", "true");
+    expect(repsField()).not.toHaveAttribute("aria-invalid", "true");
+    expect(weightField()).toHaveFocus();
+  });
+
+  it("typing in an errored field clears only that field's error", () => {
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: READY_TIMER,
+          reps: null,
+          weight: null,
+          missingSetFields: ["reps", "weight"],
+          canStartSet: false,
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(repsField()).toHaveAttribute("aria-invalid", "true");
+
+    fireEvent.change(repsField(), { target: { value: "10" } });
+
+    expect(repsField()).not.toHaveAttribute("aria-invalid", "true");
+    expect(weightField()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("re-emptying a field does not re-error it until the next blocked tap", () => {
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: READY_TIMER,
+          reps: null,
+          weight: 60,
+          missingSetFields: ["reps"],
+          canStartSet: false,
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(repsField()).toHaveAttribute("aria-invalid", "true");
+
+    fireEvent.change(repsField(), { target: { value: "10" } });
+    fireEvent.change(repsField(), { target: { value: "" } });
+
+    expect(repsField()).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("a new set (same exercise, next series) carries no error over", () => {
+    const { rerender } = render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: READY_TIMER,
+          reps: null,
+          weight: null,
+          missingSetFields: ["reps", "weight"],
+          canStartSet: false,
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(repsField()).toHaveAttribute("aria-invalid", "true");
+
+    rerender(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: {
+            ...READY_TIMER,
+            currentSeries: READY_TIMER.currentSeries + 1,
+          },
+          reps: 8,
+          weight: 60,
+          missingSetFields: [],
+          canStartSet: true,
+        })}
+      />,
+    );
+
+    expect(repsField()).not.toHaveAttribute("aria-invalid", "true");
+    expect(weightField()).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("the filled path still starts the set — no error, tap fires", () => {
+    const tap = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          timer: READY_TIMER,
+          reps: 8,
+          weight: 60,
+          missingSetFields: [],
+          canStartSet: true,
+          tap,
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(tap).toHaveBeenCalledTimes(1);
+    expect(repsField()).not.toHaveAttribute("aria-invalid", "true");
+    expect(weightField()).not.toHaveAttribute("aria-invalid", "true");
   });
 });
 

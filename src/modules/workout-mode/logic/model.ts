@@ -188,18 +188,19 @@ export function tap(
   const banked = elapsedSeconds(session.anchorTs, now);
 
   if (session.phase === "ready") {
-    // Tap-to-start (§D12): arm → work, but ONLY with a weight entered for the
-    // set (the seam also gates this; the reducer stays safe as a no-op).
-    if (session.enteredWeightKg === null) return session;
+    // Tap-to-start (§D12): arm → work, but ONLY with reps AND a weight entered
+    // for the set (the seam also gates this; the reducer stays safe as a no-op).
+    if (session.enteredWeightKg === null || session.enteredReps === null) {
+      return session;
+    }
     return { ...session, phase: "work", anchorTs: now };
   }
 
   if (session.phase === "work") {
     // The set that just finished is at index `currentSeries.length` (§D3 table):
-    // bank its own weight + its entered reps (falling back to the plan's reps
-    // for that index when unentered) into a `SeriesLog`.
-    const i = session.currentSeries.length;
-    const reps = session.enteredReps ?? exercise?.sets[i]?.reps ?? 0;
+    // bank its own weight + the reps the user confirmed into a `SeriesLog`. The
+    // `?? 0` only satisfies `number` — reps are gated before `work` is reachable.
+    const reps = session.enteredReps ?? 0;
     const weightKg = session.enteredWeightKg ?? 0;
     const setLog: SeriesLog = {
       reps,

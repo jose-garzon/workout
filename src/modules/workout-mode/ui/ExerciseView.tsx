@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type Ref, useEffect, useRef, useState } from "react";
 import { useTranslation } from "@/shared/i18n";
 import { Button } from "@/shared/ui/primitives/Button";
 import { Input } from "@/shared/ui/primitives/Input";
-import type { SeriesView, WorkoutSessionApi } from "../logic/useWorkoutSession";
+import type {
+  SeriesView,
+  SetField,
+  WorkoutSessionApi,
+} from "../logic/useWorkoutSession";
 import { formatClock, Stopwatch } from "./Stopwatch";
 
 export interface ExerciseViewProps {
   session: WorkoutSessionApi;
 }
+
+/** Stable identity so `shownErrors === EMPTY_FIELDS` never forces a re-render
+ * on its own — same reasoning as `EMPTY_TIMER` in the seam hook. */
+const EMPTY_FIELDS: SetField[] = [];
 
 function repsRangeLabel(repsPerSet: number[]): string {
   if (repsPerSet.length === 0) return "—";
@@ -44,6 +52,7 @@ export function ExerciseView({ session }: ExerciseViewProps) {
     previousWeight,
     reps,
     setReps,
+    missingSetFields,
     canStartSet,
     timer,
     completedSets,
@@ -51,9 +60,41 @@ export function ExerciseView({ session }: ExerciseViewProps) {
     nextExercise,
   } = session;
 
+  const repsRef = useRef<HTMLInputElement>(null);
+  const weightRef = useRef<HTMLInputElement>(null);
+
+  /* Stamped with the set it belongs to (design.md §D6) — a new set or exercise
+     changes `setKey`, so `shownErrors` reads back empty on the very next
+     render with no `useEffect` reset (and no stale-frame flash of it). */
+  const setKey = `${currentExercise?.id ?? ""}:${timer.currentSeries}`;
+  const [errored, setErrored] = useState<{
+    setKey: string;
+    fields: SetField[];
+  }>({ setKey: "", fields: EMPTY_FIELDS });
+  const shownErrors = errored.setKey === setKey ? errored.fields : EMPTY_FIELDS;
+
   if (!currentExercise) return null;
 
   const unitLabel = unit === "imperial" ? "lb" : "kg";
+
+  // Synchronous — see design.md §D3: focus must land in the same task as the
+  // click for iOS Safari to open the soft keyboard.
+  const handleTap = () => {
+    if (missingSetFields.length > 0) {
+      setErrored({ setKey, fields: missingSetFields });
+      (missingSetFields[0] === "reps" ? repsRef : weightRef).current?.focus();
+      return;
+    }
+    void tap();
+  };
+
+  // Any edit to a field clears ITS error, filled or not (design.md §D6) — only
+  // a blocked tap can put an error back, so re-emptying a field doesn't re-error it.
+  const clearFieldError = (field: SetField) => {
+    if (shownErrors.length === 0) return;
+    setErrored({ setKey, fields: shownErrors.filter((f) => f !== field) });
+  };
+  const errorMessage = t("workout.exercise.fieldRequired");
 
   return (
     <div className="flex flex-1 flex-col gap-[var(--space-6)]">
@@ -88,6 +129,9 @@ export function ExerciseView({ session }: ExerciseViewProps) {
               reps={reps}
               setReps={setReps}
               disabled={timer.phase !== "ready"}
+              error={shownErrors.includes("reps") ? errorMessage : null}
+              inputRef={repsRef}
+              onEdit={() => clearFieldError("reps")}
             />
           </div>
           {/* `key` remounts the field fresh whenever the exercise changes —
@@ -106,15 +150,22 @@ export function ExerciseView({ session }: ExerciseViewProps) {
               // `exercise-complete` all lock it so a value can't shift under a
               // set that's already in flight.
               disabled={timer.phase !== "ready"}
+              error={shownErrors.includes("weight") ? errorMessage : null}
+              inputRef={weightRef}
+              onEdit={() => clearFieldError("weight")}
             />
           </div>
         </div>
         {/* Kept to one line at the 375px floor (was a 2-line wrap) — same
             guidance, tighter copy, ~20px less height in the vertical-fit
-            budget. */}
-        <p className="text-caption text-text-muted">
-          {t("workout.exercise.equipmentHint")}
-        </p>
+            budget. Suppressed while a field error shows (design.md §Risks
+            "vertical fit"): the error is the more urgent caption and reclaims
+            the same line, for net ~zero added height. */}
+        {shownErrors.length === 0 && (
+          <p className="text-caption text-text-muted">
+            {t("workout.exercise.equipmentHint")}
+          </p>
+        )}
         {previousWeight != null && (
           <p className="text-caption text-text-muted">
             {t("workout.exercise.lastTime", {
@@ -136,7 +187,7 @@ export function ExerciseView({ session }: ExerciseViewProps) {
       />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-[var(--space-6)]">
-        <Stopwatch timer={timer} tap={tap} canStartSet={canStartSet} />
+        <Stopwatch timer={timer} tap={handleTap} canStartSet={canStartSet} />
       </div>
 
       {/* Fixed-height slot, ALWAYS rendered at the same size, whether or not
@@ -311,13 +362,22 @@ function RepsField({
   reps,
   setReps,
   disabled,
+  error,
+  inputRef,
+  onEdit,
 }: {
   reps: number | null;
   setReps: (value: number | null) => void;
   disabled: boolean;
+  error: string | null;
+  inputRef: Ref<HTMLInputElement>;
+  /** Fired on every change event, empty or not (design.md §D6) — clears this
+   * field's error so re-emptying it doesn't re-error it. */
+  onEdit: () => void;
 }) {
   const { t } = useTranslation();
   const commit = (value: string) => {
+    onEdit();
     const trimmed = value.trim();
     if (trimmed === "") {
       setReps(null);
@@ -329,6 +389,7 @@ function RepsField({
 
   return (
     <Input
+      ref={inputRef}
       label={t("workout.exercise.repsLabel")}
       type="number"
       size="lg"
@@ -336,6 +397,7 @@ function RepsField({
       value={reps != null ? String(reps) : ""}
       onChange={commit}
       disabled={disabled}
+      error={error}
     />
   );
 }
@@ -345,16 +407,23 @@ function WeightField({
   weight,
   setWeight,
   disabled,
+  error,
+  inputRef,
+  onEdit,
 }: {
   unitLabel: string;
   weight: number | null;
   setWeight: (value: number | null) => void;
   disabled: boolean;
+  error: string | null;
+  inputRef: Ref<HTMLInputElement>;
+  onEdit: () => void;
 }) {
   const { t } = useTranslation();
   const [text, setText] = useState(weight != null ? String(weight) : "");
 
   const commit = (value: string) => {
+    onEdit();
     setText(value);
     const trimmed = value.trim();
     if (trimmed === "") {
@@ -367,6 +436,7 @@ function WeightField({
 
   return (
     <Input
+      ref={inputRef}
       label={t("workout.exercise.weightLabel")}
       type="number"
       size="lg"
@@ -375,6 +445,7 @@ function WeightField({
       onChange={commit}
       suffix={unitLabel}
       disabled={disabled}
+      error={error}
     />
   );
 }

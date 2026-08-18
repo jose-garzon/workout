@@ -12,10 +12,10 @@
 /**
  * One completed set — captured on the work→rest (or work→complete) tap (§D3).
  * `reps` is the ACTUAL reps the user entered for this set (progressive-overload
- * tracking); falls back to the plan's reps for this set index when unentered.
+ * tracking) — a set cannot start until they are entered.
  */
 export interface SeriesLog {
-  /** Actual reps performed, or the plan's reps for this set index as fallback. */
+  /** Actual reps performed, as confirmed by the user before the set started. */
   reps: number;
   /** The weight used for THIS set, canonical kg (0 if unset). */
   weightKg: number;
@@ -113,6 +113,9 @@ export type TimerPhase =
   | "overtime"
   | "exercise-complete";
 
+/** A per-set entry field that gates starting the set. Order is focus order. */
+export type SetField = "reps" | "weight";
+
 /** A day's exercise, for the overview list. */
 export interface OverviewExercise {
   id: string;
@@ -142,7 +145,7 @@ export interface CurrentExerciseView {
  * per-set progress list. The UI does no math: `weight`/`volume` arrive converted.
  */
 export interface SeriesView {
-  /** The plan's reps for this set index. */
+  /** The reps actually performed in this set. */
   reps: number;
   /** DISPLAY unit (kg→lb converted at the seam, §D11); 0 if unset. */
   weight: number;

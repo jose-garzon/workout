@@ -164,6 +164,7 @@ describe("tap reducer (§D3)", () => {
       anchorTs: 0,
       defaultRestSeconds: 120,
       enteredWeightKg: 60,
+      enteredReps: 8,
     });
     const next = tap(s, TWO_EX_DAY, 45_000); // 45s of work on series 1 of 2
 
@@ -175,7 +176,7 @@ describe("tap reducer (§D3)", () => {
     expect(next.exerciseLogs).toHaveLength(0);
   });
 
-  it("records varied per-set reps exactly (12/10/8) with weight×reps volume", () => {
+  it("records the entered per-set reps exactly (12/10/8) with weight×reps volume", () => {
     const varied = day([
       {
         id: "e1",
@@ -187,7 +188,12 @@ describe("tap reducer (§D3)", () => {
         ],
       },
     ]);
-    let s = session({ phase: "work", anchorTs: 0, enteredWeightKg: 100 });
+    let s = session({
+      phase: "work",
+      anchorTs: 0,
+      enteredWeightKg: 100,
+      enteredReps: 12,
+    });
     // Set 1 (12 reps).
     s = tap(s, varied, 30_000);
     expect(s.currentSeries[0]).toEqual({
@@ -198,7 +204,13 @@ describe("tap reducer (§D3)", () => {
     });
     // Rest → ready → work, then set 2 (10 reps) at a heavier weight.
     s = tap(
-      { ...s, phase: "work", anchorTs: 30_000, enteredWeightKg: 105 },
+      {
+        ...s,
+        phase: "work",
+        anchorTs: 30_000,
+        enteredWeightKg: 105,
+        enteredReps: 10,
+      },
       varied,
       55_000,
     );
@@ -210,7 +222,13 @@ describe("tap reducer (§D3)", () => {
     });
     // Set 3 (8 reps) completes the exercise.
     const done = tap(
-      { ...s, phase: "work", anchorTs: 55_000, enteredWeightKg: 110 },
+      {
+        ...s,
+        phase: "work",
+        anchorTs: 55_000,
+        enteredWeightKg: 110,
+        enteredReps: 8,
+      },
       varied,
       75_000,
     );
@@ -236,7 +254,7 @@ describe("tap reducer (§D3)", () => {
     expect(next.currentSeries).toHaveLength(1);
   });
 
-  it("ready → work only when a weight is entered (§D12)", () => {
+  it("ready → work only when BOTH reps and a weight are entered", () => {
     const armed = session({
       phase: "ready",
       currentSeries: [seriesLog()],
@@ -244,15 +262,19 @@ describe("tap reducer (§D3)", () => {
     });
 
     // No weight → no-op.
-    expect(tap({ ...armed, enteredWeightKg: null }, TWO_EX_DAY, 5_000)).toEqual(
-      {
-        ...armed,
-        enteredWeightKg: null,
-      },
-    );
+    const noWeight = { ...armed, enteredWeightKg: null, enteredReps: 8 };
+    expect(tap(noWeight, TWO_EX_DAY, 5_000)).toEqual(noWeight);
 
-    // Weight set → starts the work clock.
-    const started = tap({ ...armed, enteredWeightKg: 60 }, TWO_EX_DAY, 5_000);
+    // No reps → no-op (an empty reps field must not record an unconfirmed number).
+    const noReps = { ...armed, enteredWeightKg: 60, enteredReps: null };
+    expect(tap(noReps, TWO_EX_DAY, 5_000)).toEqual(noReps);
+
+    // Both set → starts the work clock.
+    const started = tap(
+      { ...armed, enteredWeightKg: 60, enteredReps: 8 },
+      TWO_EX_DAY,
+      5_000,
+    );
     expect(started.phase).toBe("work");
     expect(started.anchorTs).toBe(5_000);
   });
@@ -265,6 +287,7 @@ describe("tap reducer (§D3)", () => {
       currentSeries: [seriesLog({ workSeconds: 45 })],
       accumRestSeconds: 90,
       enteredWeightKg: 60,
+      enteredReps: 8,
     });
     const next = tap(s, TWO_EX_DAY, 40_000);
 
@@ -286,6 +309,7 @@ describe("tap reducer (§D3)", () => {
       phase: "work",
       currentSeries: [],
       enteredWeightKg: null,
+      enteredReps: 5,
     });
     // Squat (index 1) is a single-series exercise → completes on the first tap.
     const onSquat = { ...s, currentExerciseIndex: 1, anchorTs: 0 };
@@ -304,7 +328,7 @@ describe("tap reducer (§D3)", () => {
     expect(tap(s, TWO_EX_DAY, 10_000)).toEqual(s);
   });
 
-  it("banks the user-entered reps instead of the plan's when enteredReps is set", () => {
+  it("banks the reps the user entered, not the plan's", () => {
     const s = session({
       phase: "work",
       anchorTs: 0,

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, Ref } from "react";
 
 export type InputType = "text" | "number";
 export type InputSize = "md" | "lg";
@@ -37,6 +37,9 @@ export interface InputProps {
    * inert, not just non-interactive.
    */
   disabled?: boolean;
+  /** React 19 plain prop (no `forwardRef`) — lets a caller move focus to the
+   * inner `<input>` programmatically, e.g. a blocked-tap error (§D3). */
+  ref?: Ref<HTMLInputElement>;
 }
 
 const SIZE_HEIGHT: Record<InputSize, string> = {
@@ -77,6 +80,7 @@ export function Input({
   autoComplete,
   size = "md",
   disabled = false,
+  ref,
 }: InputProps) {
   const inputId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   const errorId = error ? `${inputId}-error` : undefined;
@@ -87,7 +91,10 @@ export function Input({
 
   return (
     <div className="flex flex-col gap-[var(--space-2)]">
-      <label htmlFor={inputId} className="text-body-strong">
+      <label
+        htmlFor={inputId}
+        className={`text-body-strong ${error ? "text-danger-text" : ""}`}
+      >
         {label}
         {required && (
           <span aria-hidden="true" className="text-accent-text">
@@ -100,12 +107,18 @@ export function Input({
         className={[
           "flex border bg-transparent transition-colors",
           SIZE_HEIGHT[size],
-          "focus-within:[box-shadow:var(--focus-ring)]",
+          // Errored field gets the danger-ring recipe (--focus-ring-danger) —
+          // the plain accent ring reads "good to go" everywhere else in this
+          // system, which is the wrong signal on a field that's blocking the set.
+          error
+            ? "focus-within:[box-shadow:var(--focus-ring-danger)]"
+            : "focus-within:[box-shadow:var(--focus-ring)]",
           error ? "border-danger" : "border-border focus-within:border-text",
           disabled ? "pointer-events-none opacity-40" : "",
         ].join(" ")}
       >
         <input
+          ref={ref}
           id={inputId}
           type="text"
           inputMode={type === "number" ? "decimal" : undefined}

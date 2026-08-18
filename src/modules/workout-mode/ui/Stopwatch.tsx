@@ -6,8 +6,11 @@ import type { TimerPhase, TimerView } from "../logic/useWorkoutSession";
 
 export interface StopwatchProps {
   timer: TimerView;
-  tap: () => Promise<void>;
-  /** In `ready`, whether the set can be started (a weight is entered, §D12). */
+  /** Narrowed from the seam's `() => Promise<void>` — the caller (`ExerciseView`)
+   * owns the blocked-tap branch and its synchronous focus move (§D2/§D3); this
+   * component stays dumb and only ever fires the start/end action. */
+  tap: () => void;
+  /** In `ready`, whether the set can be started (reps + weight entered). */
   canStartSet: boolean;
 }
 
@@ -163,7 +166,7 @@ export function Stopwatch({ timer, tap, canStartSet }: StopwatchProps) {
       </p>
     ) : timer.phase === "ready" && !canStartSet ? (
       <p className="text-caption text-text-muted text-center">
-        {t("workout.stopwatch.message.enterWeight")}
+        {t("workout.stopwatch.message.enterRepsWeight")}
       </p>
     ) : null;
 
@@ -218,8 +221,8 @@ export function Stopwatch({ timer, tap, canStartSet }: StopwatchProps) {
     <div className="flex flex-col items-center gap-[var(--space-5)]">
       <button
         type="button"
-        onClick={() => void tap()}
-        disabled={startDisabled}
+        onClick={tap}
+        aria-disabled={startDisabled || undefined}
         aria-label={stopwatchLabel(timer, canStartSet, t)}
         style={{ width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: "50%" }}
         className={`relative isolate flex select-none items-center justify-center ${phaseClasses(timer.phase, canStartSet)}`}

@@ -11,6 +11,7 @@ export type {
   OverviewExercise,
   SeriesView,
   SessionStatus,
+  SetField,
   TimerPhase,
   TimerView,
   WorkoutSessionApi,
