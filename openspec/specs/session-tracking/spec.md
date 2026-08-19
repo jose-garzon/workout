@@ -15,7 +15,7 @@ cut and restores per-series logging (see the proposal's Key decision 1, revised
 
 A completed session MUST record its date and, for each exercise worked, a per-series record: one entry per completed set holding that set's reps, weight, work time, and volume (weight × reps), plus the exercise's total rest time as an aggregate.
 
-Each set's reps — and therefore its volume — MUST be the PLANNED reps from the routine for that set index, not a count of reps actually performed (rep-counting is a non-goal). This is a deliberate, tested contract: the record captures the prescribed load at the weight the user entered.
+Each set's reps — and therefore its volume — MUST be the reps the user confirmed for that set, and MUST NOT be plan-derived. The routine's reps for a set index are a PREFILL for the reps field, never the record: a set cannot start until the field holds a value, and the field is locked while the set runs, so the value recorded is always one the user confirmed for that set.
 
 #### Scenario: Finishing a session writes a per-series record
 
@@ -23,11 +23,17 @@ Each set's reps — and therefore its volume — MUST be the PLANNED reps from t
 - **WHEN** the session ends
 - **THEN** a completed-session record is stored holding the session date and, per exercise, a `series[]` array with one entry per completed set — each carrying that set's reps, weight, work time, and volume — plus the exercise's total rest time
 
-#### Scenario: Each set records the planned reps, not counted reps
+#### Scenario: Each set records the reps the user confirmed
 
-- **GIVEN** an exercise whose plan prescribes varying reps across sets (e.g. 12/10/8)
-- **WHEN** its sets are recorded
-- **THEN** each set's stored reps equal that set index's planned reps, and its volume equals the entered weight × those planned reps — never a count of reps the user actually performed
+- **GIVEN** a set whose plan prescribes 12 reps, and the user enters 10 reps at 40 kg
+- **WHEN** the set is completed
+- **THEN** the stored set records 10 reps and a volume of 400 kg (10 × 40) — the confirmed reps, never the planned 12
+
+#### Scenario: No set is ever recorded with plan-derived reps
+
+- **GIVEN** the start gate requires a non-empty reps field
+- **WHEN** any set in any session is completed
+- **THEN** its stored reps are a value the user confirmed for that set, and no code path records the plan's reps for that set index
 
 ### Requirement: An interrupted session resumes at the exercise in progress
 
