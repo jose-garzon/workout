@@ -47,3 +47,11 @@ used" or silently runs against the *stale* build and produces a cascade of
 `chrome-error://chromewebdata/` failures in specs you never touched (seen:
 14 bogus reds that were 0 on a clean run). `pkill -f "next start --port 3100"` in
 a wait loop until `ss -ltn | grep :3100` is empty.
+
+**2026-08-19 update.** Ran the gate this way with a `next dev` live on :3000 and
+the in-repo `bun run build` worked fine (72 passed / 1 skipped, whole chromium
+suite) — the `.next` clash above is real but not guaranteed; try the plain
+in-repo temp-config route first and only fall back to the rsync copy if the
+build actually ENOENTs. **Pick the port from `ss -ltn` at run time**: :3123 was
+already taken, almost certainly by the frontend-dev-designer running their own
+gate in the same parallel apply. :3177 was free.

@@ -28,9 +28,9 @@ function repsRangeLabel(repsPerSet: number[]): string {
 
 /**
  * One exercise at a time (exercise-execution spec): the plan, the reps +
- * weight fields (reps prefilled from the previous session's reps at this set
- * index, for progressive overload) + a previous-weight reference, the
- * stopwatch, and — once
+ * weight fields (set 1 seeded from the last session's final set, sets 2+
+ * carried from the previous set — see design.md §D2/§D3) + a "Last time"
+ * reference, the stopwatch, and — once
  * `timer.phase === 'exercise-complete'` — the Next exercise control. On the
  * day's last exercise `status` moves straight to `'success'` (design.md's
  * seam contract), so this component never renders a complete-screen for
@@ -49,7 +49,8 @@ export function ExerciseView({ session }: ExerciseViewProps) {
     unit,
     weight,
     setWeight,
-    previousWeight,
+    previousSet,
+    seedKey,
     reps,
     setReps,
     missingSetFields,
@@ -65,8 +66,11 @@ export function ExerciseView({ session }: ExerciseViewProps) {
 
   /* Stamped with the set it belongs to (design.md §D6) — a new set or exercise
      changes `setKey`, so `shownErrors` reads back empty on the very next
-     render with no `useEffect` reset (and no stale-frame flash of it). */
-  const setKey = `${currentExercise?.id ?? ""}:${timer.currentSeries}`;
+     render with no `useEffect` reset (and no stale-frame flash of it).
+     Folding in `seedKey` (design.md §Risks "stale field error") adds a third
+     clearing event: a history seed committing into an already-blocked field
+     must not leave it marked red once it's filled. */
+  const setKey = `${seedKey}:${timer.currentSeries}`;
   const [errored, setErrored] = useState<{
     setKey: string;
     fields: SetField[];
@@ -119,11 +123,10 @@ export function ExerciseView({ session }: ExerciseViewProps) {
             spacing between two adjacent standalone tap targets, which these
             two fields are now that they sit side by side. */}
         <div className="flex gap-[var(--space-4)]">
-          {/* Reps is a plain controlled field — it re-defaults on every NEW
-              set (session.enteredReps resets to null, the seam re-fills it
-              from previous-session reps at this set index), so it needs no
-              remount-to-reseed trick: the fresh default just flows straight
-              through the `value` prop. */}
+          {/* Reps is a plain controlled field — the seam writes its seeded
+              value straight into session state (design.md §D2/§D3), so it
+              needs no remount-to-reseed trick: the value just flows through
+              the `value` prop. */}
           <div className="min-w-0 flex-1">
             <RepsField
               reps={reps}
@@ -134,13 +137,16 @@ export function ExerciseView({ session }: ExerciseViewProps) {
               onEdit={() => clearFieldError("reps")}
             />
           </div>
-          {/* `key` remounts the field fresh whenever the exercise changes —
-              the same "remount to reseed uncontrolled state" pattern
-              `Composer`'s prefill uses — so it never fights a controlled
-              `value={String(weight)}` binding while the user is mid-decimal. */}
+          {/* `key` remounts the field fresh whenever the exercise changes OR
+              a history seed commits a value into it (design.md §D5) — the
+              same "remount to reseed uncontrolled state" pattern `Composer`'s
+              prefill uses — so it never fights a controlled
+              `value={String(weight)}` binding while the user is mid-decimal.
+              `seedKey` only changes when the seam writes a new prefill, never
+              on a keystroke, so this can't remount mid-edit. */}
           <div className="min-w-0 flex-1">
             <WeightField
-              key={currentExercise.id}
+              key={seedKey}
               unitLabel={unitLabel}
               weight={weight}
               setWeight={setWeight}
@@ -166,12 +172,18 @@ export function ExerciseView({ session }: ExerciseViewProps) {
             {t("workout.exercise.equipmentHint")}
           </p>
         )}
-        {previousWeight != null && (
+        {/* Exhaustive per design.md §D4 — `weight == null` is the only branch
+            this component makes; no unit math, no zero-checking, no history
+            reasoning belongs here, that's all folded into `previousSet`. */}
+        {previousSet != null && (
           <p className="text-caption text-text-muted">
-            {t("workout.exercise.lastTime", {
-              weight: previousWeight,
-              unit: unitLabel,
-            })}
+            {previousSet.weight != null
+              ? t("workout.exercise.lastTime", {
+                  reps: previousSet.reps,
+                  weight: previousSet.weight,
+                  unit: unitLabel,
+                })
+              : t("workout.exercise.lastTimeReps", { reps: previousSet.reps })}
           </p>
         )}
       </div>

@@ -5,9 +5,8 @@ import { type MeasurementUnit, useProfile } from "@/modules/profile-goals";
 import { useActiveRoutine } from "@/modules/routine-generation";
 import {
   clearInProgress,
+  getExerciseHistory,
   getInProgress,
-  getPreviousReps,
-  getPreviousWeight,
   saveCompleted,
   saveInProgress,
   updateRatings,
@@ -15,7 +14,9 @@ import {
 import type {
   CompletedSession,
   CurrentExerciseView,
+  ExerciseHistory,
   OverviewExercise,
+  PreviousSetView,
   SeriesView,
   SessionStatus,
   SetField,
@@ -24,6 +25,7 @@ import type {
 import {
   advanceExercise,
   tap as applyTap,
+  armedSetValues,
   defaultRestFor,
   deriveTimer,
   displayToKg,
@@ -31,6 +33,7 @@ import {
   kgToDisplay,
   toCurrentExerciseView,
   toOverviewExercises,
+  toPreviousSetView,
   toSeriesView,
 } from "./model";
 import { useWorkoutStore } from "./store";
@@ -41,6 +44,7 @@ import { useTimerTick } from "./useTimerTick";
 export type {
   CurrentExerciseView,
   OverviewExercise,
+  PreviousSetView,
   SeriesView,
   SessionStatus,
   SetField,
@@ -69,8 +73,15 @@ export interface WorkoutSessionApi {
   unit: MeasurementUnit;
   weight: number | null;
   setWeight: (value: number | null) => void;
-  previousWeight: number | null;
-  /** Reps for the CURRENT set — auto-defaulted to the previous session's reps at this set index (or the plan's), editable for progressive overload. */
+  /** The "Last time" reference in DISPLAY units, or null when the exercise has
+   *  no history at all. Never blocks anything — read-only. */
+  previousSet: PreviousSetView | null;
+  /** Opaque. Changes ONLY when the seam commits new prefill values into the
+   *  armed set (new exercise, or the async history seed landing). NEVER changes
+   *  on a user edit. The UI uses it as the React `key` of any field that keeps
+   *  local input state. */
+  seedKey: string;
+  /** Reps for the CURRENT set — seeded on set 1 from the last session's final set (or the plan's reps), carried from the previous set after that; editable for progressive overload. */
   reps: number | null;
   setReps: (value: number | null) => void;
   /**
@@ -116,14 +127,19 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     [routine, dayId],
   );
 
-  const [previousWeightKg, setPreviousWeightKg] = useState<number | null>(null);
-  /* Per-set reps `[set0, set1, ...]` from the last completed session that logged
-     the current exercise, keyed to the exercise id it was fetched for — see the
-     auto-fill effect below for why the id needs to travel with the data. */
-  const [previousReps, setPreviousReps] = useState<{
-    exerciseId: string;
-    reps: number[] | null;
-  } | null>(null);
+  /* History per exercise id (prefill-sets D8). KEY PRESENCE is the resolved
+     signal and the value is the answer — `null` is a resolved "never logged",
+     not a pending read. A single `history` slot could not tell those apart and
+     would seed one exercise with the previous one's numbers. */
+  const [historyCache, setHistoryCache] = useState<
+    Record<string, ExerciseHistory | null>
+  >({});
+  const inFlightRef = useRef(new Set<string>());
+  /* Bumped ONLY when the seed effect commits a new WEIGHT — never on a user
+     edit. The UI keys its uncontrolled weight input off this (D5). */
+  const [seedStamp, setSeedStamp] = useState(0);
+  /** The `${exerciseId}:${setIndex}` this effect has already written to. */
+  const filledSetRef = useRef<string | null>(null);
 
   /* --- Mount / resume (§D4/§D5). Re-runs if the routine identity or the day
      changes; guarded so the routine live-query re-emitting is a no-op. --- */
@@ -134,6 +150,12 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     if (initKey === null) return;
     if (initializedRef.current === initKey) return;
     initializedRef.current = initKey;
+    // A new session identity ⇒ drop the cache. Within one session the
+    // `completedSessions` table it mirrors is immutable (the day's only write
+    // happens on the last exercise's completion, after which nothing seeds
+    // again), so there is nothing else to invalidate (D8).
+    setHistoryCache({});
+    inFlightRef.current.clear();
 
     const store = useWorkoutStore.getState();
     if (!routine || !day) {
@@ -159,6 +181,22 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
           await saveInProgress(resumed);
           if (cancelled) return;
         }
+        // A resumed set past set 1 that is ALREADY ARMED had its one write
+        // before the reload, so re-applying the plan here would throw away what
+        // the user typed (D9). Set 1 needs no stamp; its fill-if-null guard
+        // already protects restored values.
+        //
+        // `phase === "ready"` is load-bearing: `tap` appends the finished set to
+        // `currentSeries` on work → rest, so a session persisted MID-REST — the
+        // most likely reload state — already counts a set that has never been
+        // armed. Stamping that one would pre-block its only write, and an
+        // unlogged exercise would arm set 2 holding set 1's carried reps
+        // instead of the plan's.
+        const setIndex = resumed.currentSeries.length;
+        if (resumed.phase === "ready" && setIndex > 0) {
+          const id = day.exercises[resumed.currentExerciseIndex]?.id ?? "";
+          filledSetRef.current = `${id}:${setIndex}`;
+        }
         next.setSession(resumed);
         next.setStatus("in-progress");
       } else {
@@ -178,78 +216,106 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     };
   }, [initKey, routine, day, dayId]);
 
-  /* --- Previous-weight lookup (§D6): re-run when the exercise changes. --- */
-  const currentExerciseId =
-    status === "in-progress" && day && session
+  /* --- History lookup (D6/D8). `armedExerciseId` covers `overview` too, so
+     set 1 is seeded BEFORE the exercise view first paints; `nextExerciseId` is
+     prefetched from the moment the current exercise is armed, so advancing
+     doesn't flash empty fields either. Prefetch is latency, never correctness:
+     a cache miss just means the seed effect waits one more render. --- */
+  const armedExerciseId =
+    (status === "overview" || status === "in-progress") && day && session
       ? (day.exercises[session.currentExerciseIndex]?.id ?? null)
       : null;
+  const nextExerciseId =
+    day?.exercises[(session?.currentExerciseIndex ?? 0) + 1]?.id ?? null;
 
   useEffect(() => {
-    if (!currentExerciseId) {
-      setPreviousWeightKg(null);
-      return;
+    for (const id of [armedExerciseId, nextExerciseId]) {
+      // `inFlightRef` only stops this re-run (deps include `historyCache`) from
+      // re-issuing a read that has not merged yet.
+      if (!id || id in historyCache || inFlightRef.current.has(id)) continue;
+      inFlightRef.current.add(id);
+      getExerciseHistory(id)
+        .catch(() => {
+          // A rejected read (blocked upgrade, quota, private mode) must still
+          // resolve the key: this effect owns the PLAN fallback too, so leaving
+          // the id pending forever would arm the set with both fields empty and
+          // nothing to explain why. `null` degrades it to the plan.
+          return null;
+        })
+        .then((history) => {
+          inFlightRef.current.delete(id);
+          setHistoryCache((cache) => ({ ...cache, [id]: history }));
+        });
     }
-    let cancelled = false;
-    getPreviousWeight(currentExerciseId).then((kg) => {
-      if (!cancelled) setPreviousWeightKg(kg);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentExerciseId]);
+  }, [armedExerciseId, nextExerciseId, historyCache]);
 
-  useEffect(() => {
-    if (!currentExerciseId) {
-      setPreviousReps(null);
-      return;
-    }
-    let cancelled = false;
-    getPreviousReps(currentExerciseId).then((reps) => {
-      if (!cancelled) setPreviousReps({ exerciseId: currentExerciseId, reps });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentExerciseId]);
+  /* --- Apply the armed set's values (prefill-sets D2, amended by D9). Runs
+     once per ARMED SET, not once per exercise: sets 2+ of an exercise with NO
+     history have to be re-applied from the plan at that index, or a descending
+     12/10/8 plan would carry set 1's 12 forward. `armedSetValues` returns null
+     for the one case that must apply nothing (a logged exercise past set 1),
+     and the effect just skips.
 
-  /* --- Reps auto-default (mirrors §D6's previous-weight lookup, but COMMITS
-     the value into the session instead of just showing a hint): every time a
-     NEW set is armed (`enteredReps` reset to null by the `tap`/`advanceExercise`
-     reducers), fill it ONCE with that set index's reps from the last session
-     that logged this exercise, or the plan's reps for that index. Waits for
-     `previousReps` to resolve for THIS exercise first, so it never fills with
-     the plan fallback and then jarringly overwrites it once the fetch lands.
-     `filledSetRef` remembers which (exercise, set index) it already filled —
-     `enteredReps === null` alone can't be the trigger, since the user
-     clearing the field to retype ALSO makes it null; without this ref the
-     effect would re-stomp their edit back to the default on every keystroke
-     that passed through an empty field. */
-  const filledSetRef = useRef<string | null>(null);
+     Write semantics differ by index on purpose (D9). Set 1 fills only where the
+     field is still null: the history read is a real async window and a user who
+     typed ahead into it keeps what they typed (AC11). Sets 2+ overwrite: there
+     is no async window — plan and history are both resolved the moment the set
+     arms — and overwriting is exactly what turns the carried 12 into 10.
+
+     `filledSetRef` remembers which (exercise, set index) it already wrote, and
+     caps that at one write, so every edit the user makes afterwards survives.
+     `enteredReps === null` can't be the trigger: a user clearing the field to
+     retype ALSO makes it null, and the effect would stomp their edit. --- */
   useEffect(() => {
-    if (status !== "in-progress" || !day || !session || !currentExerciseId) {
-      return;
-    }
+    if (!day || !session || !armedExerciseId) return;
     if (session.phase !== "ready") return;
-    if (!previousReps || previousReps.exerciseId !== currentExerciseId) return;
-
-    const index = session.currentSeries.length;
-    const key = `${currentExerciseId}:${index}`;
+    const setIndex = session.currentSeries.length;
+    const key = `${armedExerciseId}:${setIndex}`;
     if (filledSetRef.current === key) return;
+    // Not a key yet = still reading. `historyCache[id] === null` is a resolved
+    // "no history" and must fall through to the plan.
+    if (!(armedExerciseId in historyCache)) return;
     filledSetRef.current = key;
-    if (session.enteredReps !== null) return;
-
-    const exercise = day.exercises[session.currentExerciseIndex];
-    const defaultReps =
-      previousReps.reps?.[index] ?? exercise?.sets[index]?.reps ?? null;
-    if (defaultReps === null) return;
 
     const store = useWorkoutStore.getState();
     const fresh = store.session;
-    if (fresh?.phase !== "ready" || fresh.enteredReps !== null) return;
-    const next = { ...fresh, enteredReps: defaultReps };
+    if (fresh?.phase !== "ready") return;
+    const exercise = day.exercises[session.currentExerciseIndex];
+    const values = armedSetValues({
+      history: historyCache[armedExerciseId] ?? null,
+      planReps: exercise?.sets.map((set) => set.reps) ?? [],
+      setIndex,
+      carriedWeightKg: fresh.enteredWeightKg,
+    });
+    if (!values) return;
+
+    const fillIfNull = setIndex === 0;
+    const enteredReps = fillIfNull
+      ? (fresh.enteredReps ?? values.reps)
+      : // An armed set always has a plan entry, so the fallback only guards a
+        // malformed plan — never blank a carried value.
+        (values.reps ?? fresh.enteredReps);
+    const enteredWeightKg = fillIfNull
+      ? (fresh.enteredWeightKg ?? values.weightKg)
+      : values.weightKg;
+    // A write that would change nothing commits nothing — no store write, no
+    // persist, so the UI never re-renders for no reason.
+    if (
+      enteredReps === fresh.enteredReps &&
+      enteredWeightKg === fresh.enteredWeightKg
+    ) {
+      return;
+    }
+    const next = { ...fresh, enteredReps, enteredWeightKg };
     store.setSession(next);
+    // Only a CHANGED weight needs the uncontrolled `WeightField` remounted (D5);
+    // re-applying reps on sets 2+ leaves the weight exactly as it carried.
+    if (enteredWeightKg !== fresh.enteredWeightKg) {
+      setSeedStamp((stamp) => stamp + 1);
+    }
+    // Overview-time writes stay store-only; `start()` persists them.
     if (store.status === "in-progress") void saveInProgress(next);
-  }, [status, day, session, currentExerciseId, previousReps]);
+  }, [day, session, armedExerciseId, historyCache]);
 
   /* --- Display re-render pump; idle unless a live phase is showing. --- */
   const tickPhase =
@@ -267,9 +333,13 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     if (!s) return;
     const now = Date.now();
     const started = { ...s, startedAt: now, anchorTs: now };
-    await saveInProgress(started);
+    // Commit BEFORE persisting, exactly as `tap` does: `armedExerciseId` covers
+    // `overview` (§D6), so a seed can commit during the IDB write and this
+    // stale snapshot would clobber it — leaving a stamped `filledSetRef` with
+    // both fields empty and no re-seed.
     store.setSession(started);
     store.setStatus("in-progress");
+    await saveInProgress(started);
   }, []);
 
   const tap = useCallback(async () => {
@@ -381,8 +451,10 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     session?.enteredWeightKg == null
       ? null
       : kgToDisplay(session.enteredWeightKg, unit);
-  const previousWeight =
-    previousWeightKg == null ? null : kgToDisplay(previousWeightKg, unit);
+  const previousSet = armedExerciseId
+    ? toPreviousSetView(historyCache[armedExerciseId] ?? null, unit)
+    : null;
+  const seedKey = `${armedExerciseId ?? ""}:${seedStamp}`;
   const reps = session?.enteredReps ?? null;
   /* Only an ARMED set can be blocked, so this is empty outside `ready`. */
   const missingSetFields: SetField[] = [];
@@ -412,7 +484,8 @@ export function useWorkoutSession(dayId: string): WorkoutSessionApi {
     unit,
     weight,
     setWeight,
-    previousWeight,
+    previousSet,
+    seedKey,
     reps,
     setReps,
     missingSetFields,

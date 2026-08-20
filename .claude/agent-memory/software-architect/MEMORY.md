@@ -6,3 +6,4 @@
 - [Cross-feature session reads](project_cross-feature-session-reads.md) — own repo vs composition-layer prop; B must never import D; `routine.id` is always "active"
 - [OpenSpec delta renames](reference_openspec-delta-rename.md) — RENAMED FROM/TO + MODIFIED under the NEW header; apply order is RENAMED→REMOVED→MODIFIED→ADDED
 - [useLiveQuery stale deps](reference_uselivequery-stale-deps.md) — it serves the PREVIOUS result after a deps change; stamp results or a seam hook paints fabricated data
+- [Uncontrolled field async seed](reference_uncontrolled-field-async-seed.md) — local-text inputs re-seed only via `key`; async prefills need a seam-owned seedKey

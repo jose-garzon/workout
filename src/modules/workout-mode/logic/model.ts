@@ -9,8 +9,10 @@ import type { MeasurementUnit } from "@/modules/profile-goals";
 import type { RoutineDay } from "@/modules/routine-generation";
 import type {
   CurrentExerciseView,
+  ExerciseHistory,
   ExerciseLog,
   OverviewExercise,
+  PreviousSetView,
   SeriesLog,
   SeriesView,
   TimerView,
@@ -117,6 +119,67 @@ export function toSeriesView(
     // of the two numbers it renders (no separate rounding of the kg·reps figure).
     volume: weight * series.reps,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * History → the armed set (prefill-sets design D3/D9). Both branch
+ * rules live here so the seam effect and the render derivation stay
+ * dumb.
+ * ------------------------------------------------------------------ */
+
+/**
+ * What an ARMED set opens with (prefill-sets design D9). Returns `null` for the
+ * one case that must apply nothing — a logged exercise past set 1, where the
+ * reducer's carry is already the right answer.
+ *
+ * Returns canonical **kg**: the value goes straight into
+ * `session.enteredWeightKg` with no conversion, and the usual `kgToDisplay`
+ * derivation exposes it in the user's unit.
+ *
+ * A logged `weightKg` of 0 is the unset/bodyweight sentinel: apply the reps,
+ * leave the weight field empty. There is no weight fallback — the app never
+ * guesses one (proposal, non-goals).
+ */
+export function armedSetValues(params: {
+  history: ExerciseHistory | null;
+  planReps: number[];
+  setIndex: number;
+  carriedWeightKg: number | null;
+}): { reps: number | null; weightKg: number | null } | null {
+  const { history, planReps, setIndex, carriedWeightKg } = params;
+
+  if (history) {
+    // Sets 2+ keep what the reducer carried: the set the user just did is a
+    // better guess than the plan, and overwriting it would undo their own
+    // progression mid-exercise.
+    if (setIndex > 0) return null;
+    const { reps, weightKg } = history.lastSet;
+    return { reps, weightKg: weightKg > 0 ? weightKg : null };
+  }
+
+  // Never logged: the plan is the only signal there is, and it is read PER SET
+  // INDEX — so a descending 12/10/8 stays 12/10/8 instead of carrying set 1's
+  // number forward. The weight has no per-set plan, so it still carries.
+  return {
+    reps: planReps.at(setIndex) ?? null,
+    weightKg: setIndex === 0 ? null : carriedWeightKg,
+  };
+}
+
+/**
+ * The "Last time" caption in DISPLAY units (design D3/D4). Reads
+ * `lastWeighted` — the last set that carried a weight, which may be an older
+ * session than the one that seeded the fields; that divergence is accepted
+ * (proposal). With history but no weighted set ever, the reps stand alone.
+ */
+export function toPreviousSetView(
+  history: ExerciseHistory | null,
+  unit: MeasurementUnit,
+): PreviousSetView | null {
+  if (!history) return null;
+  const weighted = history.lastWeighted;
+  if (!weighted) return { reps: history.lastSet.reps, weight: null };
+  return { reps: weighted.reps, weight: kgToDisplay(weighted.weightKg, unit) };
 }
 
 /* ------------------------------------------------------------------ *
@@ -237,15 +300,13 @@ export function tap(
 
   if (session.phase === "rest") {
     // rest OR the derived overtime — both are the same stored `rest` row. The
-    // next set is ARMED, not auto-running (§D12); its weight carries over from
-    // this set (kept on the session) and stays editable. Reps reset to null so
-    // the seam re-defaults them for the NEW set index (previous-session reps
-    // for that index, or the plan's) rather than carrying the last set's value.
+    // next set is ARMED, not auto-running (§D12); BOTH entered fields carry over
+    // from this set (kept on the session) and stay editable — sets 2+ never
+    // consult history or the plan again (prefill-sets design D2).
     return {
       ...session,
       accumRestSeconds: session.accumRestSeconds + banked,
       phase: "ready",
-      enteredReps: null,
       anchorTs: now,
     };
   }
@@ -254,7 +315,9 @@ export function tap(
   return session;
 }
 
-/** Advance to the next exercise's first series, armed but not running, weight cleared. */
+/** Advance to the next exercise's first series, armed but not running. BOTH
+ * entered fields clear — that null is what makes the seam re-seed set 1 of the
+ * new exercise from its own history (prefill-sets design D2). */
 export function advanceExercise(
   session: WorkoutSession,
   now: number,

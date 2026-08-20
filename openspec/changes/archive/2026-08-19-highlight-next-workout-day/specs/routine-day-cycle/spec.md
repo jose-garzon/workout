@@ -78,9 +78,7 @@ the first.
 
 ### Requirement: Completing every day resets the cycle
 
-When the day just completed makes every day of the routine finished — whichever
-day that is, not necessarily the last in order — the cycle SHALL empty and the
-first day of the routine SHALL become next.
+When the day just completed makes every day of the routine finished — whichever day that is, not necessarily the last in order — the cycle SHALL empty and the first day of the routine SHALL become next.
 
 #### Scenario: The last outstanding day is the final day
 
@@ -98,9 +96,7 @@ first day of the routine SHALL become next.
 
 ### Requirement: Re-finishing a finished day restarts the cycle from that day
 
-When the user completes a day that is already finished in the current cycle, that
-day SHALL be the only finished day and the following day in routine order SHALL
-become next.
+When the user completes a day that is already finished in the current cycle, that day SHALL be the only finished day and the following day in routine order SHALL become next.
 
 #### Scenario: Re-finishing day 1 at three of five
 

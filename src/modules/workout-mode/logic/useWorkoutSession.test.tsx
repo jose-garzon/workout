@@ -79,6 +79,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -188,25 +189,38 @@ describe("finish sequence (§D5)", () => {
   });
 });
 
-describe("reps default (progressive overload)", () => {
-  it("prefills the armed set's reps from the previous session's reps at that set index", async () => {
-    await seedProfile("metric");
-    await seedRoutine();
-    // A prior completed session on e1 finished at 10 reps — one more than plan's 8.
+describe("set 1 seed (prefill-sets D2)", () => {
+  /** A completed session for `exerciseId`, sets as `[reps, weightKg]`. */
+  async function seedHistory(
+    exerciseId: string,
+    ...sets: Array<[number, number]>
+  ) {
     await db.completedSessions.put({
-      id: "prev",
+      id: `prev-${exerciseId}`,
       routineId: ROUTINE_ID,
       dayId: "d1",
       completedAt: 0,
       exerciseLogs: [
         {
-          exerciseId: "e1",
-          name: "Bench",
-          series: [{ reps: 10, weightKg: 60, workSeconds: 30, volumeKg: 600 }],
+          exerciseId,
+          name: exerciseId,
+          series: sets.map(([reps, weightKg]) => ({
+            reps,
+            weightKg,
+            workSeconds: 30,
+            volumeKg: reps * weightKg,
+          })),
           restSeconds: 0,
         },
       ],
     });
+  }
+
+  it("seeds BOTH fields from the last set of the last session", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    // Opened at 12×30, finished at 10×65 — the finish is the seed (plan says 8).
+    await seedHistory("e1", [12, 30], [10, 65]);
     vi.setSystemTime(1_000_000);
 
     const { result } = renderHook(() => useWorkoutSession("d1"));
@@ -216,11 +230,155 @@ describe("reps default (progressive overload)", () => {
     });
 
     await waitFor(() => expect(result.current.reps).toBe(10));
+    expect(result.current.weight).toBe(65);
 
+    // Still fully editable, and the edit persists.
     act(() => result.current.setReps(12));
     expect(result.current.reps).toBe(12);
     const row = await db.sessions.get(SESSION_ID);
     expect(row?.enteredReps).toBe(12);
+  });
+
+  it("falls back to the plan when the history read REJECTS", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    // A blocked upgrade / quota / private-mode failure, i.e. the read rejects.
+    vi.spyOn(db.completedSessions, "orderBy").mockImplementation(() => {
+      throw new Error("IndexedDB unavailable");
+    });
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+
+    // The effect owns the plan fallback, so a rejected read must still resolve
+    // the cache key — otherwise the set arms with both fields empty and no way
+    // to start. e1's plan reps is 8.
+    await waitFor(() => expect(result.current.reps).toBe(8));
+    expect(result.current.previousSet).toBeNull();
+  });
+
+  it("seeds reps only when the last set was bodyweight", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    await seedHistory("e1", [15, 0]);
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+
+    await waitFor(() => expect(result.current.reps).toBe(15));
+    expect(result.current.weight).toBeNull();
+  });
+
+  it("does not stomp a field the user filled before the read landed", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    await seedHistory("e1", [10, 65]);
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    // Type reps BEFORE starting — i.e. before the seed can commit.
+    act(() => result.current.setReps(20));
+    await act(async () => {
+      await result.current.start();
+    });
+
+    // Their reps survive; the weight is still seeded (per-field guard).
+    await waitFor(() => expect(result.current.weight).toBe(65));
+    expect(result.current.reps).toBe(20);
+  });
+
+  it("reseeds from the NEXT exercise's own history on nextExercise", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    await seedHistory("e1", [10, 65]);
+    await seedHistory("e2", [3, 100]);
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+    await waitFor(() => expect(result.current.reps).toBe(10));
+
+    // Finish e1's single set.
+    await act(async () => {
+      await result.current.tap();
+    });
+    vi.setSystemTime(1_030_000);
+    await act(async () => {
+      await result.current.tap();
+    });
+    await act(async () => {
+      await result.current.nextExercise();
+    });
+
+    await waitFor(() => expect(result.current.reps).toBe(3));
+    expect(result.current.weight).toBe(100);
+  });
+
+  it("is a no-op on a resumed session that already holds values", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    await seedHistory("e1", [10, 65]);
+    // Resumed at set 1, armed, with what the user had entered last time.
+    await saveInProgress(
+      persistedSession({ phase: "ready", enteredReps: 7, enteredWeightKg: 40 }),
+    );
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("in-progress"));
+    // Let the history read land, then confirm nothing was overwritten.
+    await waitFor(() => expect(result.current.previousSet).not.toBeNull());
+    expect(result.current.reps).toBe(7);
+    expect(result.current.weight).toBe(40);
+  });
+
+  it("moves seedKey on a seed commit but NEVER on a user edit", async () => {
+    await seedProfile("metric");
+    await seedRoutine();
+    await seedHistory("e1", [10, 65]);
+    await seedHistory("e2", [3, 100]);
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await waitFor(() => expect(result.current.reps).toBe(10));
+    await act(async () => {
+      await result.current.start();
+    });
+    const seeded = result.current.seedKey;
+
+    // Editing either field must not remount the UI's uncontrolled weight input.
+    act(() => result.current.setReps(11));
+    act(() => result.current.setWeight(70));
+    expect(result.current.seedKey).toBe(seeded);
+
+    // …but the next seed commit does move it, stamp included.
+    await act(async () => {
+      await result.current.tap();
+    });
+    vi.setSystemTime(1_030_000);
+    await act(async () => {
+      await result.current.tap();
+    });
+    await act(async () => {
+      await result.current.nextExercise();
+    });
+    // e2 seeds a different WEIGHT, which is what the stamp exists to signal.
+    await waitFor(() => expect(result.current.reps).toBe(3));
+    const stamp = (key: string) => Number(key.split(":")[1]);
+    expect(stamp(result.current.seedKey)).toBeGreaterThan(stamp(seeded));
   });
 
   it("does not re-stomp a cleared/retyped reps field back to the default (regression)", async () => {
@@ -336,7 +494,7 @@ describe("missingSetFields (the start gate)", () => {
     expect(result.current.timer.phase).toBe("ready");
   });
 
-  it("lets every set of a first-ever session start: reps prefill from the plan per set index", async () => {
+  it("lets every set of a first-ever session start: the plan's reps per set index", async () => {
     await seedProfile("metric");
     // A two-set exercise with DIFFERENT reps per set, and no session history.
     await db.routines.put({
@@ -388,12 +546,150 @@ describe("missingSetFields (the start gate)", () => {
       await result.current.tap(); // rest → ready (set 2)
     });
 
-    // Set 2 arms with the plan's reps for INDEX 1 and the carried-over weight,
-    // so nothing blocks it.
+    // No history ⇒ set 2 takes the plan's index-1 reps (6), NOT set 1's carried
+    // 8 (prefill-sets D9). The weight has no per-set plan, so it still carries.
     await waitFor(() => expect(result.current.reps).toBe(6));
     expect(result.current.weight).toBe(60);
     expect(result.current.missingSetFields).toEqual([]);
     expect(result.current.canStartSet).toBe(true);
+  });
+
+  /** Three sets, descending plan, never logged — a carried value is unmistakable. */
+  async function seedDescendingRoutine() {
+    await db.routines.put({
+      id: ROUTINE_ID,
+      name: "PPL",
+      createdAt: 0,
+      active: true,
+      days: [
+        {
+          id: "d1",
+          name: "Push",
+          exercises: [
+            {
+              id: "e1",
+              name: "Bench",
+              sets: [
+                { reps: 12, restSeconds: 120 },
+                { reps: 10, restSeconds: 120 },
+                { reps: 8, restSeconds: 120 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  it("a resume MID-REST still applies the plan when the next set arms", async () => {
+    await seedProfile("metric");
+    await seedDescendingRoutine();
+    // `tap` banks the finished set on work → rest, so a mid-rest row already
+    // counts set 1 — but set 2 has never been armed and is still owed its write.
+    await saveInProgress(
+      persistedSession({
+        phase: "rest",
+        anchorTs: 1_000_000,
+        currentSeries: [
+          { reps: 12, weightKg: 40, workSeconds: 30, volumeKg: 480 },
+        ],
+        enteredReps: 12,
+        enteredWeightKg: 40,
+      }),
+    );
+    vi.setSystemTime(1_030_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("in-progress"));
+    expect(result.current.timer.phase).toBe("rest");
+
+    // Tap out of rest → set 2 arms for the first time.
+    await act(async () => {
+      await result.current.tap();
+    });
+
+    // The plan's index-1 reps, NOT the 12 the reducer carried.
+    await waitFor(() => expect(result.current.reps).toBe(10));
+    expect(result.current.weight).toBe(40);
+  });
+
+  it("a resume at set 3 of an unlogged exercise keeps the reps the user typed", async () => {
+    await seedProfile("metric");
+    await seedDescendingRoutine();
+    const done = { reps: 12, weightKg: 40, workSeconds: 30, volumeKg: 480 };
+    await saveInProgress(
+      persistedSession({
+        // ARMED at set 3 — the write it is owed already happened pre-reload.
+        phase: "ready",
+        currentSeries: [done, done],
+        enteredReps: 15, // typed before the reload
+        enteredWeightKg: 40,
+      }),
+    );
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("in-progress"));
+    // Give the history read time to land and (wrongly) re-apply the plan's 8.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.reps).toBe(15);
+    expect(result.current.weight).toBe(40);
+  });
+
+  it("leaves seedKey alone when only the reps are re-applied", async () => {
+    await seedProfile("metric");
+    // No history, so set 2 re-applies the plan's reps — but the weight carries
+    // unchanged, and remounting `WeightField` for that would be pointless (D9).
+    await db.routines.put({
+      id: ROUTINE_ID,
+      name: "PPL",
+      createdAt: 0,
+      active: true,
+      days: [
+        {
+          id: "d1",
+          name: "Push",
+          exercises: [
+            {
+              id: "e1",
+              name: "Bench",
+              sets: [
+                { reps: 12, restSeconds: 120 },
+                { reps: 10, restSeconds: 120 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    vi.setSystemTime(1_000_000);
+
+    const { result } = renderHook(() => useWorkoutSession("d1"));
+    await waitFor(() => expect(result.current.status).toBe("overview"));
+    await act(async () => {
+      await result.current.start();
+    });
+    await waitFor(() => expect(result.current.reps).toBe(12));
+    act(() => result.current.setWeight(40));
+    const armedKey = result.current.seedKey;
+
+    await act(async () => {
+      await result.current.tap(); // ready → work
+    });
+    vi.setSystemTime(1_030_000);
+    await act(async () => {
+      await result.current.tap(); // work → rest
+    });
+    await act(async () => {
+      await result.current.tap(); // rest → set 2 armed
+    });
+
+    await waitFor(() => expect(result.current.reps).toBe(10));
+    expect(result.current.weight).toBe(40);
+    expect(result.current.seedKey).toBe(armedKey);
   });
 });
 

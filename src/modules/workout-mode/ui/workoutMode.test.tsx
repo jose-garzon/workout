@@ -127,7 +127,8 @@ function fakeApi(
     unit: "metric",
     weight: null,
     setWeight: vi.fn(),
-    previousWeight: null,
+    previousSet: null,
+    seedKey: "e1:0",
     reps: null,
     setReps: vi.fn(),
     missingSetFields: [],
@@ -243,7 +244,7 @@ describe("SessionOverview", () => {
   });
 });
 
-describe("ExerciseView — weight field + previous weight", () => {
+describe("ExerciseView — weight field + previous set ('Last time')", () => {
   it("writes typed weight through setWeight while the set is ready (not yet running)", () => {
     const setWeight = vi.fn();
     render(
@@ -317,32 +318,49 @@ describe("ExerciseView — weight field + previous weight", () => {
     ).not.toBeDisabled();
   });
 
-  it("shows a previous-weight reference only when it is not null", () => {
-    const { rerender } = render(
+  it("shows no 'Last time' caption when the exercise has no history (AC2)", () => {
+    render(
       <ExerciseView
         session={fakeApi({
           status: "in-progress",
           currentExercise: CURRENT_EXERCISE,
-          previousWeight: null,
+          previousSet: null,
         })}
       />,
     );
     expect(screen.queryByText(/Last time/)).not.toBeInTheDocument();
+  });
 
-    rerender(
+  it("shows reps and weight when the reference set carried weight (AC1)", () => {
+    render(
       <ExerciseView
         session={fakeApi({
           status: "in-progress",
           currentExercise: CURRENT_EXERCISE,
-          previousWeight: 60,
+          previousSet: { reps: 12, weight: 60 },
           unit: "metric",
         })}
       />,
     );
     expect(
       screen.getByText(
-        t("workout.exercise.lastTime", { weight: 60, unit: "kg" }),
+        t("workout.exercise.lastTime", { reps: 12, weight: 60, unit: "kg" }),
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows reps only when the reference set had no weight — bodyweight (AC9)", () => {
+    render(
+      <ExerciseView
+        session={fakeApi({
+          status: "in-progress",
+          currentExercise: CURRENT_EXERCISE,
+          previousSet: { reps: 12, weight: null },
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(t("workout.exercise.lastTimeReps", { reps: 12 })),
     ).toBeInTheDocument();
   });
 

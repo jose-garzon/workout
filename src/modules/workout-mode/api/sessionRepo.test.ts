@@ -4,9 +4,8 @@ import type { CompletedSession, ExerciseLog, WorkoutSession } from "../types";
 import {
   clearInProgress,
   getCompletedForRoutine,
+  getExerciseHistory,
   getInProgress,
-  getPreviousReps,
-  getPreviousWeight,
   saveCompleted,
   saveInProgress,
   updateRatings,
@@ -14,12 +13,12 @@ import {
 
 /**
  * Real Dexie against fake-indexeddb (design.md §6). Proves the two id spaces
- * (§D5), the ratings update, and the previous-weight scan (§D6).
+ * (§D5), the ratings update, and the one history scan (prefill-sets D1).
  */
 
 /**
- * An `ExerciseLog` whose single series carries `weightKg` — enough to exercise
- * the previous-weight scan (§D6). Pass a list of weights to build multiple sets.
+ * An `ExerciseLog` whose sets carry the given weights at a fixed 8 reps — enough
+ * to exercise the history scan. Pass several weights to build several sets.
  */
 function log(exerciseId: string, ...weightsKg: number[]): ExerciseLog {
   return {
@@ -127,57 +126,80 @@ describe("getCompletedForRoutine (edit-history §Decision 1)", () => {
   });
 });
 
-describe("getPreviousWeight (§D6)", () => {
-  it("returns the LAST positive-weight series of the most recent matching log", async () => {
-    await saveCompleted(completed("c1", 1000, [log("e1", 70)]));
-    // Newest: three sets, finishing on 85 → that's the reference.
-    await saveCompleted(completed("c2", 2000, [log("e1", 75, 80, 85)]));
-    expect(await getPreviousWeight("e1")).toBe(85);
-  });
-
-  it("returns null when no completed session contains the exercise", async () => {
-    await saveCompleted(completed("c1", 1000, [log("e1", 70)]));
-    expect(await getPreviousWeight("nope")).toBeNull();
-  });
-
-  it("skips trailing 0-weight sets and falls back to the last real one", async () => {
-    // The finishing set is bodyweight (0) → skip it, return the prior 80.
-    await saveCompleted(completed("c1", 2000, [log("e1", 75, 80, 0)]));
-    expect(await getPreviousWeight("e1")).toBe(80);
-  });
-
-  it("scans older sessions when the newest matching log has no positive weight", async () => {
-    await saveCompleted(completed("c1", 1000, [log("e1", 60)]));
-    await saveCompleted(completed("c2", 2000, [log("e1", 0)]));
-    // Newest matching log is all-zero → keep scanning → the earlier real weight.
-    expect(await getPreviousWeight("e1")).toBe(60);
-  });
-});
-
-describe("getPreviousReps (progressive-overload reps default)", () => {
-  /** A log whose sets carry explicit varying reps, for the per-index scan. */
-  function repsLog(exerciseId: string, ...reps: number[]): ExerciseLog {
+describe("getExerciseHistory (prefill-sets D1)", () => {
+  /** Sets as `[reps, weightKg]` pairs — reps matter to both answers here. */
+  function setsLog(
+    exerciseId: string,
+    ...sets: Array<[number, number]>
+  ): ExerciseLog {
     return {
       exerciseId,
       name: exerciseId,
-      series: reps.map((r) => ({
-        reps: r,
-        weightKg: 60,
+      series: sets.map(([reps, weightKg]) => ({
+        reps,
+        weightKg,
         workSeconds: 30,
-        volumeKg: 60 * r,
+        volumeKg: reps * weightKg,
       })),
       restSeconds: 90,
     };
   }
 
-  it("returns the per-set reps array from the most recent matching session", async () => {
-    await saveCompleted(completed("c1", 1000, [repsLog("e1", 8, 8, 8)]));
-    await saveCompleted(completed("c2", 2000, [repsLog("e1", 10, 9, 8)]));
-    expect(await getPreviousReps("e1")).toEqual([10, 9, 8]);
+  it("returns null when no completed session contains the exercise", async () => {
+    await saveCompleted(completed("c1", 1000, [log("e1", 70)]));
+    expect(await getExerciseHistory("nope")).toBeNull();
   });
 
-  it("returns null when no completed session contains the exercise", async () => {
-    await saveCompleted(completed("c1", 1000, [repsLog("e1", 8)]));
-    expect(await getPreviousReps("nope")).toBeNull();
+  it("reads both answers off the tail of the most recent matching log", async () => {
+    await saveCompleted(completed("c1", 1000, [setsLog("e1", [12, 70])]));
+    // Newest: finished on 9 × 85 → that's both the seed and the reference.
+    await saveCompleted(
+      completed("c2", 2000, [setsLog("e1", [12, 75], [10, 80], [9, 85])]),
+    );
+    expect(await getExerciseHistory("e1")).toEqual({
+      lastSet: { reps: 9, weightKg: 85 },
+      lastWeighted: { reps: 9, weightKg: 85 },
+    });
+  });
+
+  it("DIVERGES when the last set was logged at weight 0 after a real one", async () => {
+    await saveCompleted(
+      completed("c1", 2000, [setsLog("e1", [12, 75], [10, 80], [8, 0])]),
+    );
+    // The seed is what you finished on (weight 0 → the field stays empty);
+    // the caption still references the last set that carried a weight.
+    expect(await getExerciseHistory("e1")).toEqual({
+      lastSet: { reps: 8, weightKg: 0 },
+      lastWeighted: { reps: 10, weightKg: 80 },
+    });
+  });
+
+  it("has no reference at all when every logged set was bodyweight", async () => {
+    await saveCompleted(completed("c1", 1000, [setsLog("e1", [12, 0])]));
+    await saveCompleted(completed("c2", 2000, [setsLog("e1", [15, 0])]));
+    expect(await getExerciseHistory("e1")).toEqual({
+      lastSet: { reps: 15, weightKg: 0 },
+      lastWeighted: null,
+    });
+  });
+
+  it("finds the reference in an OLDER session than the one that seeds", async () => {
+    await saveCompleted(completed("c1", 1000, [setsLog("e1", [12, 60])]));
+    await saveCompleted(completed("c2", 2000, [setsLog("e1", [15, 0])]));
+    // Newest matching log is all-zero → the seed comes from it, the reference
+    // keeps scanning back.
+    expect(await getExerciseHistory("e1")).toEqual({
+      lastSet: { reps: 15, weightKg: 0 },
+      lastWeighted: { reps: 12, weightKg: 60 },
+    });
+  });
+
+  it("skips a matching log that recorded no sets", async () => {
+    await saveCompleted(completed("c1", 1000, [setsLog("e1", [12, 60])]));
+    await saveCompleted(completed("c2", 2000, [setsLog("e1")]));
+    expect(await getExerciseHistory("e1")).toEqual({
+      lastSet: { reps: 12, weightKg: 60 },
+      lastWeighted: { reps: 12, weightKg: 60 },
+    });
   });
 });

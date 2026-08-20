@@ -62,7 +62,7 @@ export interface WorkoutSession {
   exerciseLogs: ExerciseLog[];
   currentExerciseIndex: number;
   enteredWeightKg: number | null;
-  /** Reps entered for the CURRENT set; reset to null on every new armed set so the seam can re-default it per set index (previous-session reps, or the plan's). */
+  /** Reps entered for the CURRENT set. Seeded on set 1 from the last session's final set (or the plan), then CARRIED to each following set — only `advanceExercise` clears it, so the next exercise re-seeds. */
   enteredReps: number | null;
   /** Sets already completed within THIS exercise, in order (§D1 revised). */
   currentSeries: SeriesLog[];
@@ -71,6 +71,31 @@ export interface WorkoutSession {
   phase: SessionPhase;
   /** `Date.now()` at the current phase's start — all displayed time derives from this (§D3/§D4). */
   anchorTs: number;
+}
+
+/**
+ * One logged set reduced to the two numbers history needs (prefill-sets design D1).
+ */
+export interface HistorySet {
+  reps: number;
+  /** Canonical kg. 0 is the unset/bodyweight sentinel. */
+  weightKg: number;
+}
+
+/**
+ * What one scan of `completedSessions` answers for an exercise (prefill-sets
+ * design D1). The two fields deliberately DISAGREE when the last session ended
+ * on a weight-0 set — the caption is a reference, the prefill is a seed.
+ */
+export interface ExerciseHistory {
+  /** Last set of the MOST RECENT completed session that logged this exercise.
+   *  `weightKg` may be 0. This is the PREFILL seed. */
+  lastSet: HistorySet;
+  /** Last set with `weightKg > 0`, scanning sessions newest-first and
+   *  continuing into OLDER sessions when a matching log has none.
+   *  `null` when no session ever logged a positive weight for it.
+   *  This is the CAPTION reference. */
+  lastWeighted: HistorySet | null;
 }
 
 /**
@@ -153,6 +178,17 @@ export interface SeriesView {
   workSeconds: number;
   /** Display-unit volume = `weight × reps`. */
   volume: number;
+}
+
+/**
+ * The "Last time" reference in DISPLAY units (prefill-sets design D4). The UI
+ * does no unit math and no zero-checking: `weight == null` is its only test.
+ */
+export interface PreviousSetView {
+  reps: number;
+  /** DISPLAY unit. `null` when the referenced set carried no weight
+   *  (bodyweight) — render the reps-only caption. */
+  weight: number | null;
 }
 
 /** Everything the stopwatch renders (§D3). */

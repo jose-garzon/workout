@@ -2,12 +2,20 @@ import "@testing-library/jest-dom/vitest";
 // Real Dexie against an in-memory IndexedDB — a broken migration/index fails a
 // test instead of shipping (design.md §6). Must load before any db import.
 import "fake-indexeddb/auto";
+import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { server } from "./msw/server";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
+
+// RTL only registers its own auto-cleanup when `globals: true`, which this
+// project does not set — so without this, a finished test's tree stays MOUNTED
+// and its effects keep writing to the module-level Zustand stores (and Dexie)
+// while the NEXT test runs. Symptom: a test that passes under `-t "<name>"` but
+// fails in a full-file run, holding a previous test's fixture values.
+afterEach(cleanup);
 
 // jsdom has no CSS Animation/Transition support at all, which React's event
 // system feature-detects at module-load time: with no `window.AnimationEvent`

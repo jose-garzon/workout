@@ -9,6 +9,7 @@ export { useSessionSummary } from "./logic/useSessionSummary";
 export type {
   CurrentExerciseView,
   OverviewExercise,
+  PreviousSetView,
   SeriesView,
   SessionStatus,
   SetField,

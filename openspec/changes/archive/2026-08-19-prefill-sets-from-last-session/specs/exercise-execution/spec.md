@@ -1,24 +1,9 @@
-# exercise-execution Specification
+## RENAMED Requirements
 
-## Purpose
+- FROM: `### Requirement: Previous weight is shown when the exercise has prior history`
+- TO: `### Requirement: Last session's reps and weight are shown when the exercise has prior history`
 
-Working one exercise at a time: what the per-exercise view shows, entering the
-set's reps and weight, seeing last time's weight, and advancing through an exercise's series
-and on to the next exercise until the day is done. The stopwatch cycle that drives
-"a series is complete" lives in `workout-timer`; this spec owns the exercise-level
-structure around it.
-
-## Requirements
-
-### Requirement: Per-exercise view shows the plan and the set's reps and weight fields
-
-The per-exercise view SHALL show the current exercise's name, its planned series and reps, and both entry fields for the current set — a reps field and a weight field.
-
-#### Scenario: Current exercise is presented with its plan
-
-- **GIVEN** a session in progress on a given exercise
-- **WHEN** the per-exercise view is shown
-- **THEN** it displays that exercise's name, its planned number of series, its planned reps, a reps field, and a weight field
+## MODIFIED Requirements
 
 ### Requirement: Last session's reps and weight are shown when the exercise has prior history
 
@@ -81,6 +66,8 @@ Both fields are editable while the set is not running and locked while it runs. 
 - **GIVEN** a set was completed at one reps and weight, and the user then edits both before the next set runs
 - **WHEN** the next set is recorded
 - **THEN** the earlier set keeps its own recorded reps and weight and the next set records the edited values
+
+## ADDED Requirements
 
 ### Requirement: Set fields are prefilled from history or from the previous set
 
@@ -163,79 +150,3 @@ Advancing to another exercise SHALL prefill from that exercise's own history. Pr
 - **GIVEN** set 1 is prefilled from the last session
 - **WHEN** the user edits either field before tapping the stopwatch
 - **THEN** the edited values are what the set starts with and what is recorded, and no set has started until the user taps
-
-### Requirement: A blocked start attempt identifies every empty field
-
-When a start attempt is blocked, the system SHALL put every empty required field into an error state — a red border, a red label, and a visible message, so color is never the only signal — and SHALL move keyboard focus to the first empty field, taking reps before weight. Fields that hold a value SHALL NOT be marked.
-
-#### Scenario: Empty reps is identified
-
-- **GIVEN** a set is armed, weight is filled and reps is empty
-- **WHEN** the user taps the stopwatch
-- **THEN** no set starts, the reps field shows its error state with a red border, a red label and a visible message, the weight field shows no error, and keyboard focus moves to the reps field
-
-#### Scenario: Empty weight is identified
-
-- **GIVEN** a set is armed, reps is filled and weight is empty
-- **WHEN** the user taps the stopwatch
-- **THEN** no set starts, only the weight field shows its error state, and keyboard focus moves to the weight field
-
-#### Scenario: Both empty marks both and focuses reps
-
-- **GIVEN** a set is armed and both reps and weight are empty
-- **WHEN** the user taps the stopwatch
-- **THEN** no set starts, both fields show their error state, and keyboard focus moves to the reps field as the first of the two
-
-#### Scenario: Tapping again while still empty repeats the answer
-
-- **GIVEN** both fields are shown in their error state
-- **WHEN** the user taps the stopwatch again without filling anything
-- **THEN** the errors remain shown and keyboard focus returns to the first empty field
-
-### Requirement: Field errors clear on input and never outlive the set
-
-A field's error state MUST clear as soon as the user edits that field, without a further tap, and MUST NOT reappear until the next blocked start attempt. Error state MUST NOT carry across a new set or a new exercise.
-
-#### Scenario: Entering a value clears only that field's error
-
-- **GIVEN** the reps field is showing its error state and the weight field is empty and also showing its error state
-- **WHEN** the user enters any value in the reps field
-- **THEN** the reps field's error state clears immediately and the weight field keeps its own error
-
-#### Scenario: Re-emptying a field does not re-raise its error
-
-- **GIVEN** a field showed an error and was then filled
-- **WHEN** the user clears it back to empty
-- **THEN** no error is shown for it again until the next blocked start attempt
-
-#### Scenario: A new set or exercise starts with no errors
-
-- **GIVEN** errors are showing on the current exercise
-- **WHEN** a new set is armed or the user advances to the next exercise
-- **THEN** no error state is carried over into the new set or exercise
-
-### Requirement: Next exercise appears when all series are complete
-
-When every planned series of the current exercise has been completed, the system SHALL reveal a Next exercise control that advances to the following exercise.
-
-#### Scenario: Next exercise control appears after the final series
-
-- **GIVEN** a session in progress on an exercise
-- **WHEN** the exercise's last planned series is completed
-- **THEN** the exercise is marked done and a Next exercise control appears
-
-#### Scenario: Advancing to the following exercise
-
-- **GIVEN** the Next exercise control is shown and more exercises remain in the day
-- **WHEN** the user activates it
-- **THEN** the per-exercise view for the next exercise in order is shown
-
-### Requirement: Finishing the last exercise completes the session
-
-When the last exercise of the day is completed, the system SHALL end the session and proceed to the completion view rather than to another exercise.
-
-#### Scenario: Session completes after the final exercise
-
-- **GIVEN** a session in progress on the day's final exercise
-- **WHEN** that exercise is completed
-- **THEN** the session ends and the completion view is shown

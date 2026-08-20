@@ -58,7 +58,7 @@ export interface SummaryContext {
 /**
  * "What you finished on" for one exercise log: the last `SeriesLog` with
  * `weightKg > 0` (a `weightKg <= 0` set is the unset/bodyweight sentinel and is
- * skipped), matching `getPreviousWeight` semantics. `null` when no set carried a
+ * skipped), matching `getExerciseHistory`'s `lastWeighted` semantics. `null` when no set carried a
  * positive weight.
  */
 function repSeries(log: ExerciseLog): SeriesLog | null {

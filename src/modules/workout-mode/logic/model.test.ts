@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { RoutineDay } from "@/modules/routine-generation";
-import type { ExerciseLog, SeriesLog, WorkoutSession } from "../types";
+import type {
+  ExerciseHistory,
+  ExerciseLog,
+  SeriesLog,
+  WorkoutSession,
+} from "../types";
 import {
   advanceExercise,
+  armedSetValues,
   defaultRestFor,
   deriveTimer,
   displayToKg,
@@ -14,6 +20,7 @@ import {
   tap,
   toCurrentExerciseView,
   toOverviewExercises,
+  toPreviousSetView,
   toSeriesView,
   unitLabel,
 } from "./model";
@@ -344,16 +351,109 @@ describe("tap reducer (§D3)", () => {
     });
   });
 
-  it("resets enteredReps to null on rest → ready, so the next set re-defaults", () => {
+  it("CARRIES enteredReps through rest → ready (prefill-sets D2 regression pin)", () => {
     const s = session({
       phase: "rest",
       anchorTs: 0,
       currentSeries: [seriesLog()],
-      enteredReps: 10, // the just-finished set's reps — must not carry over
+      enteredReps: 10,
+      enteredWeightKg: 60,
     });
     const next = tap(s, TWO_EX_DAY, 30_000);
     expect(next.phase).toBe("ready");
-    expect(next.enteredReps).toBeNull();
+    // Sets 2+ carry BOTH fields from the previous set — clearing reps here is
+    // exactly the per-set-index re-defaulting this change removed.
+    expect(next.enteredReps).toBe(10);
+    expect(next.enteredWeightKg).toBe(60);
+  });
+});
+
+describe("history → the armed set (prefill-sets D3/D9)", () => {
+  const history = (
+    lastSet: [number, number],
+    lastWeighted: [number, number] | null,
+  ): ExerciseHistory => ({
+    lastSet: { reps: lastSet[0], weightKg: lastSet[1] },
+    lastWeighted: lastWeighted
+      ? { reps: lastWeighted[0], weightKg: lastWeighted[1] }
+      : null,
+  });
+
+  /** The three inputs that are not under test, so each case reads as one line. */
+  const armed = (
+    history: ExerciseHistory | null,
+    setIndex: number,
+    carriedWeightKg: number | null = null,
+  ) =>
+    armedSetValues({
+      history,
+      planReps: [12, 10, 8],
+      setIndex,
+      carriedWeightKg,
+    });
+
+  describe("armedSetValues (D9's four branches)", () => {
+    it("has history, set 1 → the last set, ignoring the plan", () => {
+      expect(armed(history([9, 35], [9, 35]), 0)).toEqual({
+        reps: 9,
+        weightKg: 35,
+      });
+    });
+
+    it("has history, sets 2+ → null: apply nothing, the carry is right", () => {
+      expect(armed(history([9, 35], [9, 35]), 1, 35)).toBeNull();
+      expect(armed(history([9, 35], [9, 35]), 2, 37.5)).toBeNull();
+    });
+
+    it("no history, set 1 → the plan's first reps and an empty weight", () => {
+      expect(armed(null, 0)).toEqual({ reps: 12, weightKg: null });
+    });
+
+    it("no history, sets 2+ → the plan AT THAT INDEX, weight carried", () => {
+      // The whole point of D9: set 2 is 10, never set 1's 12.
+      expect(armed(null, 1, 40)).toEqual({ reps: 10, weightKg: 40 });
+      expect(armed(null, 2, 40)).toEqual({ reps: 8, weightKg: 40 });
+    });
+
+    it("has history, set 1, bodyweight → reps only, never a guessed weight", () => {
+      expect(armed(history([12, 0], [10, 80]), 0)).toEqual({
+        reps: 12,
+        weightKg: null,
+      });
+    });
+
+    it("reads past the end of the plan as no reps rather than throwing", () => {
+      expect(armed(null, 9, 40)).toEqual({ reps: null, weightKg: 40 });
+    });
+  });
+
+  describe("toPreviousSetView", () => {
+    it("is null without history", () => {
+      expect(toPreviousSetView(null, "metric")).toBeNull();
+    });
+
+    it("reads the last WEIGHTED set, which may disagree with the seed", () => {
+      // Finished on a bodyweight set: the caption references the 80 kg set,
+      // while seedFromHistory leaves the weight field empty.
+      expect(toPreviousSetView(history([12, 0], [10, 80]), "metric")).toEqual({
+        reps: 10,
+        weight: 80,
+      });
+    });
+
+    it("shows reps alone when no set ever carried a weight", () => {
+      expect(toPreviousSetView(history([12, 0], null), "metric")).toEqual({
+        reps: 12,
+        weight: null,
+      });
+    });
+
+    it("converts the weight to the display unit, never the reps", () => {
+      expect(toPreviousSetView(history([8, 30], [8, 30]), "imperial")).toEqual({
+        reps: 8,
+        weight: 66, // 30 kg → 66.1 lb → 0.5-step round
+      });
+    });
   });
 });
 

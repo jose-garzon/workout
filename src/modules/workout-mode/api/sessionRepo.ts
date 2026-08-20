@@ -12,7 +12,9 @@
 import { type CompletedSessionRow, db, type SessionRow } from "@/shared/db";
 import type {
   CompletedSession,
+  ExerciseHistory,
   ExerciseLog,
+  HistorySet,
   SeriesLog,
   SessionPhase,
   WorkoutSession,
@@ -127,7 +129,7 @@ export async function updateRatings(
 /**
  * Completed sessions for `routineId`, most-recent first, capped at `limit`
  * (routine-edit-history design.md §Decision 1). Orders by the `completedAt`
- * index (newest first, like `getPreviousWeight`), filters by `routineId`, and
+ * index (newest first, like `getExerciseHistory`), filters by `routineId`, and
  * stops at `limit` — the recent window fed to the edit-history summarizer.
  */
 export async function getCompletedForRoutine(
@@ -144,54 +146,44 @@ export async function getCompletedForRoutine(
 }
 
 /**
- * The weight (kg) last used for `exerciseId` in a completed session, or null
- * (§D6). Scans completed sessions newest-first; for the first matching
- * `ExerciseLog` it returns the `weightKg` of that log's **last `SeriesLog` with
- * `weightKg > 0`** ("what you finished on") — a `weightKg <= 0` is the
- * unset/bodyweight sentinel and is skipped. If a matching log has no
- * positive-weight set it keeps scanning older sessions; `null` when none exists.
+ * Everything history has to say about `exerciseId`, from ONE newest-first scan
+ * of `completedSessions` (prefill-sets design D1). `null` when the exercise has
+ * never been logged.
+ *
+ * The two answers are deliberately asymmetric about zero weight, and both rules
+ * are two lines of the same loop so neither can be silently repurposed for the
+ * other: `lastSet` takes the tail set of the most recent matching log whatever
+ * its weight (the PREFILL seed — "what you finished on"), while `lastWeighted`
+ * skips the `weightKg <= 0` unset/bodyweight sentinel and keeps scanning into
+ * OLDER sessions when a matching log has none (the CAPTION reference).
  */
-export async function getPreviousWeight(
+export async function getExerciseHistory(
   exerciseId: string,
-): Promise<number | null> {
+): Promise<ExerciseHistory | null> {
   const rows = await db.completedSessions
     .orderBy("completedAt")
     .reverse()
     .toArray();
+
+  let lastSet: HistorySet | null = null;
   for (const row of rows) {
     for (const log of row.exerciseLogs as ExerciseLog[]) {
       if (log.exerciseId !== exerciseId) continue;
+      const tail = log.series.at(-1);
+      if (!tail) continue; // logged the exercise but recorded no set
+      if (!lastSet) lastSet = toHistorySet(tail);
       for (let i = log.series.length - 1; i >= 0; i--) {
         const set = log.series[i];
-        if (set && set.weightKg > 0) return set.weightKg;
+        if (set.weightKg > 0) {
+          return { lastSet, lastWeighted: toHistorySet(set) };
+        }
       }
       // Matched the exercise but no positive-weight set — keep scanning older.
     }
   }
-  return null;
+  return lastSet ? { lastSet, lastWeighted: null } : null;
 }
 
-/**
- * The per-set reps `[set0, set1, ...]` from the most recent completed session
- * that logged `exerciseId`, or null — the progressive-overload default (add
- * one or two reps a week) the seam prefills each armed set's reps field with,
- * indexed by set position. Unlike `getPreviousWeight` this returns the whole
- * array (reps genuinely vary set-to-set, e.g. a descending pyramid) rather
- * than a single scalar, and does not skip any set (0 reps is a real, if
- * unusual, logged value — unlike weight's unset/bodyweight sentinel).
- */
-export async function getPreviousReps(
-  exerciseId: string,
-): Promise<number[] | null> {
-  const rows = await db.completedSessions
-    .orderBy("completedAt")
-    .reverse()
-    .toArray();
-  for (const row of rows) {
-    for (const log of row.exerciseLogs as ExerciseLog[]) {
-      if (log.exerciseId !== exerciseId) continue;
-      return log.series.map((set) => set.reps);
-    }
-  }
-  return null;
+function toHistorySet(set: SeriesLog): HistorySet {
+  return { reps: set.reps, weightKg: set.weightKg };
 }
